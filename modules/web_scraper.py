@@ -1,49 +1,45 @@
-from typing import List, Optional, Dict
+import requests
+from bs4 import BeautifulSoup
+from typing import List, Optional
+import time
 
-class RAGHandler:
-    """Handles RAG functionality for knowledge retrieval"""
+class WebScraper:
+    """Scrapes web content for context enhancement"""
     
     def __init__(self):
-        self.knowledge_base = self._initialize_knowledge_base()
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        self.timeout = 10
     
-    def _initialize_knowledge_base(self) -> Dict:
-        knowledge_base = {
-            "python": {
-                "fundamentals": "Python is a high-level, interpreted programming language...",
-                "data_structures": "Python includes lists, tuples, dictionaries, and sets...",
-                "best_practices": "Follow PEP 8 style guide, use virtual environments..."
-            },
-            "data_science": {
-                "numpy": "NumPy is a fundamental package for numerical computing...",
-                "pandas": "Pandas provides data structures for data analysis...",
-                "machine_learning": "Machine learning involves training models on data..."
-            },
-            "web_development": {
-                "django": "Django is a high-level Python web framework...",
-                "fastapi": "FastAPI is a modern, fast web framework for APIs...",
-                "rest_api": "REST APIs use HTTP methods: GET, POST, PUT, DELETE..."
-            }
-        }
-        return knowledge_base
-    
-    def retrieve_context(self, topic: str, subtopics: List[str]) -> str:
+    def scrape_topic(self, topic: str, subtopics: List[str]) -> str:
         try:
+            search_query = f"{topic} {' '.join(subtopics)}"
             context_parts = []
-            topic_lower = topic.lower()
-            for key, content in self.knowledge_base.items():
-                if key in topic_lower or topic_lower in key:
-                    for subtopic in subtopics:
-                        subtopic_lower = subtopic.lower()
-                        if subtopic_lower in content:
-                            context_parts.append(content[subtopic_lower])
-            if not context_parts:
-                context_parts.append(f"General information about {topic}")
-            return " ".join(context_parts[:3])
+            sources = [
+                f"https://stackoverflow.com/search?q={search_query.replace(' ', '+')}",
+                f"https://github.com/search?q={search_query.replace(' ', '+')}&type=code"
+            ]
+            for source in sources:
+                try:
+                    response = self.session.get(source, timeout=self.timeout)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        text_content = " ".join([p.get_text() for p in soup.find_all(['p', 'h1', 'h2', 'h3'])[:5]])
+                        if text_content:
+                            context_parts.append(text_content[:500])
+                except:
+                    continue
+                time.sleep(1)
+            return " ".join(context_parts[:2]) if context_parts else ""
         except:
             return ""
     
-    def add_document(self, document_id: str, content: str, metadata: Dict):
-        pass
-    
-    def update_knowledge_base(self, new_documents: List[Dict]):
-        pass
+    def extract_text_from_url(self, url: str) -> str:
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                return " ".join([p.get_text() for p in soup.find_all(['p', 'article', 'main'])])
+            return ""
+        except:
+            return ""
