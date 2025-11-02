@@ -83,6 +83,21 @@ def main():
         if not api_key and not os.getenv("GEMINI_API_KEY"):
             st.warning("⚠️ Please provide a Gemini API Key")
         
+        st.divider()
+        st.subheader("Optional APIs")
+        
+        firecrawl_key = st.text_input(
+            "Firecrawl API Key (Optional)",
+            value=os.getenv("FIRECRAWL_API_KEY", ""),
+            type="password",
+            help="For better web scraping. Get at https://firecrawl.dev (free tier available)"
+        )
+        
+        st.markdown("[Get Firecrawl API Key here](https://firecrawl.dev) 🔥 (Optional)")
+        
+        st.divider()
+        st.subheader("Model Selection")
+        
         model_name = st.selectbox(
             "Select Gemini Model",
             options=[
@@ -202,7 +217,7 @@ def main():
                 if web_scraper_enabled:
                     status_text.text("🌐 Fetching current data from web...")
                     progress_bar.progress(40)
-                    scraper = WebScraper()
+                    scraper = WebScraper(firecrawl_api_key=firecrawl_key or os.getenv("FIRECRAWL_API_KEY", ""))
                     enhanced_context = scraper.scrape_topic(topic, context)
                     progress_bar.progress(60)
                 elif rag_enabled:
@@ -329,6 +344,7 @@ def main():
     - Provide specific sub-topics for more relevant questions<br/>
     - Adjust the generic/practical ratio based on your interview focus<br/>
     - Enable web scraping or RAG for more current and contextual questions<br/>
+    - Add Firecrawl API key for better web scraping (optional)<br/>
     - Review questions before sharing with candidates<br/>
     - Use ChromaDB for RAG to maintain up-to-date knowledge base
     </div>
