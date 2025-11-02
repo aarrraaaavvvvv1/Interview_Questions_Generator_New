@@ -6,8 +6,14 @@ import time
 class WebScraper:
     """Scrapes web content using Firecrawl with fallback"""
     
-    def __init__(self):
-        self.firecrawl_api_key = os.getenv("FIRECRAWL_API_KEY", "")
+    def __init__(self, firecrawl_api_key: str = ""):
+        """
+        Initialize WebScraper
+        
+        Args:
+            firecrawl_api_key: Optional Firecrawl API key. If not provided, will check environment variable
+        """
+        self.firecrawl_api_key = firecrawl_api_key or os.getenv("FIRECRAWL_API_KEY", "")
         self.firecrawl_base_url = "https://api.firecrawl.dev/v0"
         self.timeout = 15
         self.session = requests.Session()
