@@ -46,12 +46,78 @@ st.markdown("""
         border-radius: 0.5rem;
         color: #721c24;
     }
+    .mc-question {
+        background-color: #f9f9f9;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 if "questions_generated" not in st.session_state:
     st.session_state.questions_generated = False
     st.session_state.questions_data = None
+
+def display_question(q_obj, include_answers):
+    """Display question based on its type"""
+    q_type = q_obj.get('type', 'N/A')
+    
+    if q_type == "Multiple Choice":
+        # Display multiple choice questions with all options
+        st.write(f"**Type:** {q_type}")
+        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+        
+        # Display the full question which includes options
+        question_text = q_obj.get('question', '')
+        st.write(question_text)
+        
+        if include_answers and "answer" in q_obj:
+            st.markdown("---")
+            st.markdown("**Answer:**")
+            st.write(q_obj["answer"])
+    
+    elif q_type == "Code-based":
+        # Display code-based questions
+        st.write(f"**Type:** {q_type}")
+        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+        st.write(q_obj.get('question', ''))
+        
+        if include_answers and "answer" in q_obj:
+            st.markdown("---")
+            st.markdown("**Answer:**")
+            answer_text = q_obj["answer"]
+            # Try to display as code if it looks like code
+            if any(keyword in answer_text for keyword in ['def ', 'class ', 'import ', 'function', '{']):
+                st.code(answer_text)
+            else:
+                st.write(answer_text)
+    
+    elif q_type == "Debugging":
+        # Display debugging questions
+        st.write(f"**Type:** {q_type}")
+        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+        st.write(q_obj.get('question', ''))
+        
+        if include_answers and "answer" in q_obj:
+            st.markdown("---")
+            st.markdown("**Answer:**")
+            answer_text = q_obj["answer"]
+            if any(keyword in answer_text for keyword in ['def ', 'class ', 'import ', 'function', '{']):
+                st.code(answer_text)
+            else:
+                st.write(answer_text)
+    
+    else:
+        # Display other question types
+        st.write(f"**Type:** {q_type}")
+        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+        st.write(q_obj.get('question', ''))
+        
+        if include_answers and "answer" in q_obj:
+            st.markdown("---")
+            st.markdown("**Answer:**")
+            st.write(q_obj["answer"])
 
 def main():
     st.markdown('<div class="main-header">🎯 Interview Questions Generator</div>', unsafe_allow_html=True)
@@ -265,13 +331,10 @@ def main():
         
         for i, q_obj in enumerate(questions_data["questions"], 1):
             with st.expander(f"Question {i}: {q_obj['question'][:60]}...", expanded=False):
-                st.write(f"**Type:** {q_obj.get('type', 'N/A')}")
-                st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
-                st.write(f"**Category:** {q_obj.get('category', 'Generic' if q_obj.get('is_generic') else 'Practical')}")
+                display_question(q_obj, include_answers)
                 
-                if include_answers and "answer" in q_obj:
-                    st.markdown("**Answer:**")
-                    st.write(q_obj["answer"])
+                if q_obj.get('keywords'):
+                    st.markdown("**Keywords:** " + ", ".join(q_obj['keywords']))
         
         st.divider()
         
@@ -345,6 +408,8 @@ def main():
     - Adjust the generic/practical ratio based on your interview focus<br/>
     - Enable web scraping or RAG for more current and contextual questions<br/>
     - Add Firecrawl API key for better web scraping (optional)<br/>
+    - Multiple Choice questions will show all options in the expanded view<br/>
+    - Code-based questions will display syntax-highlighted code<br/>
     - Review questions before sharing with candidates<br/>
     - Use ChromaDB for RAG to maintain up-to-date knowledge base
     </div>
