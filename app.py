@@ -25,10 +25,26 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     .info-box {
-        background-color: #f0f2f6;
+        background-color: #e8f4f8;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
+        border-left: 4px solid #1f77b4;
+        color: #0d3b66;
+    }
+    .tips-box {
+        background-color: #fff3cd;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+        border-left: 4px solid #ff9800;
+        color: #333333;
+    }
+    .error-box {
+        background-color: #f8d7da;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        color: #721c24;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -61,6 +77,8 @@ def main():
             type="password",
             help="Get your API key from https://aistudio.google.com/app/apikey"
         )
+        
+        st.markdown("[Get your Gemini API Key here](https://aistudio.google.com/app/apikey) 🔑")
         
         if not api_key and not os.getenv("GEMINI_API_KEY"):
             st.warning("⚠️ Please provide a Gemini API Key")
@@ -128,7 +146,14 @@ def main():
         
         question_type = st.multiselect(
             "Question Types",
-            options=["Multiple Choice", "Short Answer", "Long Answer", "Code-based"],
+            options=[
+                "Multiple Choice",
+                "Short Answer",
+                "Long Answer",
+                "Code-based",
+                "Scenario-based",
+                "Debugging"
+            ],
             default=["Short Answer", "Long Answer"],
             help="Select types of questions to include"
         )
@@ -155,40 +180,66 @@ def main():
             st.error("❌ Please enter a topic")
         elif not api_key and not os.getenv("GEMINI_API_KEY"):
             st.error("❌ Please provide a Gemini API Key")
+        elif not question_type:
+            st.error("❌ Please select at least one question type")
         else:
             try:
-                with st.spinner("🔄 Generating questions... This may take a moment"):
-                    gemini_handler = GeminiHandler(api_key or os.getenv("GEMINI_API_KEY"), model_name)
-                    question_generator = QuestionGenerator(gemini_handler)
-                    
-                    context = [c.strip() for c in context_input.split("\n") if c.strip()] if context_input else []
-                    
-                    enhanced_context = ""
-                    if web_scraper_enabled:
-                        st.info("🌐 Fetching current data from web...")
-                        scraper = WebScraper()
-                        enhanced_context = scraper.scrape_topic(topic, context)
-                    elif rag_enabled:
-                        st.info("📚 Retrieving context from RAG system...")
-                        rag = RAGHandler()
-                        enhanced_context = rag.retrieve_context(topic, context)
-                    
-                    questions_data = question_generator.generate_questions(
-                        topic=topic,
-                        context=context,
-                        num_questions=num_questions,
-                        generic_percentage=generic_percentage,
-                        difficulty_level=difficulty_level,
-                        question_types=question_type,
-                        include_answers=include_answers,
-                        enhanced_context=enhanced_context
-                    )
-                    
-                    st.session_state.questions_generated = True
-                    st.session_state.questions_data = questions_data
-                    st.success("✅ Questions generated successfully!")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                status_text.text("🔄 Initializing...")
+                progress_bar.progress(10)
+                
+                gemini_handler = GeminiHandler(api_key or os.getenv("GEMINI_API_KEY"), model_name)
+                question_generator = QuestionGenerator(gemini_handler)
+                
+                status_text.text("📝 Processing sub-topics...")
+                progress_bar.progress(20)
+                
+                context = [c.strip() for c in context_input.split("\n") if c.strip()] if context_input else []
+                
+                enhanced_context = ""
+                if web_scraper_enabled:
+                    status_text.text("🌐 Fetching current data from web...")
+                    progress_bar.progress(40)
+                    scraper = WebScraper()
+                    enhanced_context = scraper.scrape_topic(topic, context)
+                    progress_bar.progress(60)
+                elif rag_enabled:
+                    status_text.text("📚 Retrieving context from knowledge base...")
+                    progress_bar.progress(40)
+                    rag = RAGHandler()
+                    enhanced_context = rag.retrieve_context(topic, context)
+                    progress_bar.progress(60)
+                
+                status_text.text("🤖 Generating questions with Gemini...")
+                progress_bar.progress(70)
+                
+                questions_data = question_generator.generate_questions(
+                    topic=topic,
+                    context=context,
+                    num_questions=num_questions,
+                    generic_percentage=generic_percentage,
+                    difficulty_level=difficulty_level,
+                    question_types=question_type,
+                    include_answers=include_answers,
+                    enhanced_context=enhanced_context
+                )
+                
+                progress_bar.progress(90)
+                status_text.text("✅ Processing results...")
+                progress_bar.progress(100)
+                
+                st.session_state.questions_generated = True
+                st.session_state.questions_data = questions_data
+                
+                status_text.empty()
+                progress_bar.empty()
+                st.success("✅ Questions generated successfully!")
                     
             except Exception as e:
+                progress_bar.empty()
+                status_text.empty()
                 st.error(f"❌ Error generating questions: {str(e)}")
     
     if st.session_state.questions_generated and st.session_state.questions_data:
@@ -273,14 +324,13 @@ def main():
     
     st.divider()
     st.markdown("""
-    <div class="info-box">
-    <small>
-    💡 **Tips:** 
-    - Provide specific sub-topics for more relevant questions
-    - Adjust the generic/practical ratio based on your interview focus
-    - Enable web scraping or RAG for more current and contextual questions
-    - Review questions before sharing with candidates
-    </small>
+    <div class="tips-box">
+    <strong>💡 Tips:</strong><br/>
+    - Provide specific sub-topics for more relevant questions<br/>
+    - Adjust the generic/practical ratio based on your interview focus<br/>
+    - Enable web scraping or RAG for more current and contextual questions<br/>
+    - Review questions before sharing with candidates<br/>
+    - Use ChromaDB for RAG to maintain up-to-date knowledge base
     </div>
     """, unsafe_allow_html=True)
 
