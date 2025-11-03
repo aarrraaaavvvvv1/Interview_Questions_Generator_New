@@ -45,6 +45,7 @@ st.markdown("""
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         font-family: monospace;
+        word-wrap: break-word;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -62,7 +63,6 @@ def display_question(q_obj, include_answers):
     st.write(f"**Category:** {q_obj.get('category', 'Generic' if q_obj.get('is_generic') else 'Practical')}")
     
     if q_type == "Multiple Choice":
-        # Display the full question which includes all options
         question_text = q_obj.get('question', '')
         st.markdown("**Question:**")
         st.markdown(f'<div class="mc-question">{question_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
@@ -73,7 +73,6 @@ def display_question(q_obj, include_answers):
             st.success(q_obj["answer"])
     
     elif q_type in ["Code-based", "Debugging"]:
-        # Display code questions
         st.markdown("**Question:**")
         st.write(q_obj.get('question', ''))
         
@@ -81,20 +80,18 @@ def display_question(q_obj, include_answers):
             st.markdown("---")
             st.markdown("**Answer:**")
             answer_text = q_obj["answer"]
-            # Try to extract code blocks
             if '```' in answer_text:
                 parts = answer_text.split('```')
                 for i, part in enumerate(parts):
-                    if i % 2 == 1:  # Code block
+                    if i % 2 == 1:
                         st.code(part.strip())
-                    else:  # Regular text
+                    else:
                         if part.strip():
                             st.write(part.strip())
             else:
                 st.code(answer_text)
     
     else:
-        # Display other question types
         st.markdown("**Question:**")
         st.write(q_obj.get('question', ''))
         
@@ -355,7 +352,7 @@ def main():
                             use_container_width=True
                         )
                     
-                    st.success(f"✅ PDF created successfully!")
+                    st.success(f"✅ PDF created successfully with proper formatting!")
                     
             except Exception as e:
                 st.error(f"❌ Error generating PDF: {str(e)}")
@@ -387,6 +384,7 @@ def main():
     - Add Firecrawl API key for better web scraping (optional)<br/>
     - Multiple Choice questions show all options with detailed explanations<br/>
     - Code-based questions display syntax-highlighted code blocks<br/>
+    - PDF text is now properly aligned and contained within page margins<br/>
     - Review questions before sharing with candidates
     </div>
     """, unsafe_allow_html=True)
