@@ -5,7 +5,6 @@ from modules.gemini_handler import GeminiHandler
 from modules.question_generator import QuestionGenerator
 from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
-from modules.rag_handler import RAGHandler
 
 load_dotenv()
 
@@ -40,17 +39,12 @@ st.markdown("""
         border-left: 4px solid #ff9800;
         color: #333333;
     }
-    .error-box {
-        background-color: #f8d7da;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        color: #721c24;
-    }
     .mc-question {
-        background-color: #f9f9f9;
-        padding: 1rem;
-        border-radius: 0.5rem;
+        background-color: #f5f5f5;
+        padding: 0.8rem;
+        border-radius: 0.3rem;
         margin: 0.5rem 0;
+        font-family: monospace;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -60,64 +54,57 @@ if "questions_generated" not in st.session_state:
     st.session_state.questions_data = None
 
 def display_question(q_obj, include_answers):
-    """Display question based on its type"""
+    """Display question based on its type with proper formatting"""
     q_type = q_obj.get('type', 'N/A')
     
+    st.write(f"**Type:** {q_type}")
+    st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+    st.write(f"**Category:** {q_obj.get('category', 'Generic' if q_obj.get('is_generic') else 'Practical')}")
+    
     if q_type == "Multiple Choice":
-        # Display multiple choice questions with all options
-        st.write(f"**Type:** {q_type}")
-        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
-        
-        # Display the full question which includes options
+        # Display the full question which includes all options
         question_text = q_obj.get('question', '')
-        st.write(question_text)
+        st.markdown("**Question:**")
+        st.markdown(f'<div class="mc-question">{question_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
         
         if include_answers and "answer" in q_obj:
             st.markdown("---")
             st.markdown("**Answer:**")
-            st.write(q_obj["answer"])
+            st.success(q_obj["answer"])
     
-    elif q_type == "Code-based":
-        # Display code-based questions
-        st.write(f"**Type:** {q_type}")
-        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+    elif q_type in ["Code-based", "Debugging"]:
+        # Display code questions
+        st.markdown("**Question:**")
         st.write(q_obj.get('question', ''))
         
         if include_answers and "answer" in q_obj:
             st.markdown("---")
             st.markdown("**Answer:**")
             answer_text = q_obj["answer"]
-            # Try to display as code if it looks like code
-            if any(keyword in answer_text for keyword in ['def ', 'class ', 'import ', 'function', '{']):
-                st.code(answer_text)
+            # Try to extract code blocks
+            if '```' in answer_text:
+                parts = answer_text.split('```')
+                for i, part in enumerate(parts):
+                    if i % 2 == 1:  # Code block
+                        st.code(part.strip())
+                    else:  # Regular text
+                        if part.strip():
+                            st.write(part.strip())
             else:
-                st.write(answer_text)
-    
-    elif q_type == "Debugging":
-        # Display debugging questions
-        st.write(f"**Type:** {q_type}")
-        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
-        st.write(q_obj.get('question', ''))
-        
-        if include_answers and "answer" in q_obj:
-            st.markdown("---")
-            st.markdown("**Answer:**")
-            answer_text = q_obj["answer"]
-            if any(keyword in answer_text for keyword in ['def ', 'class ', 'import ', 'function', '{']):
                 st.code(answer_text)
-            else:
-                st.write(answer_text)
     
     else:
         # Display other question types
-        st.write(f"**Type:** {q_type}")
-        st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
+        st.markdown("**Question:**")
         st.write(q_obj.get('question', ''))
         
         if include_answers and "answer" in q_obj:
             st.markdown("---")
             st.markdown("**Answer:**")
-            st.write(q_obj["answer"])
+            st.info(q_obj["answer"])
+    
+    if q_obj.get('keywords'):
+        st.caption("**Keywords:** " + ", ".join(q_obj['keywords']))
 
 def main():
     st.markdown('<div class="main-header">🎯 Interview Questions Generator</div>', unsafe_allow_html=True)
@@ -127,12 +114,11 @@ def main():
         
         data_source = st.radio(
             "Select Data Source",
-            options=["Gemini Only", "Web Scraping + Gemini", "RAG + Gemini"],
-            help="Choose how to enhance question generation with external data"
+            options=["Gemini Only", "Web Scraping + Gemini"],
+            help="Use web scraping to get current, real-time data for your questions"
         )
         
         web_scraper_enabled = data_source == "Web Scraping + Gemini"
-        rag_enabled = data_source == "RAG + Gemini"
         
         st.divider()
         st.subheader("API Configuration")
@@ -144,13 +130,13 @@ def main():
             help="Get your API key from https://aistudio.google.com/app/apikey"
         )
         
-        st.markdown("[Get your Gemini API Key here](https://aistudio.google.com/app/apikey) 🔑")
+        st.markdown("[🔑 Get your Gemini API Key](https://aistudio.google.com/app/apikey)")
         
         if not api_key and not os.getenv("GEMINI_API_KEY"):
             st.warning("⚠️ Please provide a Gemini API Key")
         
         st.divider()
-        st.subheader("Optional APIs")
+        st.subheader("Optional: Web Scraping")
         
         firecrawl_key = st.text_input(
             "Firecrawl API Key (Optional)",
@@ -159,7 +145,7 @@ def main():
             help="For better web scraping. Get at https://firecrawl.dev (free tier available)"
         )
         
-        st.markdown("[Get Firecrawl API Key here](https://firecrawl.dev) 🔥 (Optional)")
+        st.markdown("[🔥 Get Firecrawl API Key](https://firecrawl.dev) (Optional)")
         
         st.divider()
         st.subheader("Model Selection")
@@ -171,7 +157,7 @@ def main():
                 "models/gemini-2.5-pro",
                 "models/gemini-2.5-flash-lite"
             ],
-            help="Choose the Gemini model version (Flash is fastest & cheapest)"
+            help="gemini-2.5-flash is recommended (fast & accurate)"
         )
     
     col1, col2 = st.columns([2, 1])
@@ -286,12 +272,6 @@ def main():
                     scraper = WebScraper(firecrawl_api_key=firecrawl_key or os.getenv("FIRECRAWL_API_KEY", ""))
                     enhanced_context = scraper.scrape_topic(topic, context)
                     progress_bar.progress(60)
-                elif rag_enabled:
-                    status_text.text("📚 Retrieving context from knowledge base...")
-                    progress_bar.progress(40)
-                    rag = RAGHandler()
-                    enhanced_context = rag.retrieve_context(topic, context)
-                    progress_bar.progress(60)
                 
                 status_text.text("🤖 Generating questions with Gemini...")
                 progress_bar.progress(70)
@@ -332,9 +312,6 @@ def main():
         for i, q_obj in enumerate(questions_data["questions"], 1):
             with st.expander(f"Question {i}: {q_obj['question'][:60]}...", expanded=False):
                 display_question(q_obj, include_answers)
-                
-                if q_obj.get('keywords'):
-                    st.markdown("**Keywords:** " + ", ".join(q_obj['keywords']))
         
         st.divider()
         
@@ -406,12 +383,11 @@ def main():
     <strong>💡 Tips:</strong><br/>
     - Provide specific sub-topics for more relevant questions<br/>
     - Adjust the generic/practical ratio based on your interview focus<br/>
-    - Enable web scraping or RAG for more current and contextual questions<br/>
+    - Enable "Web Scraping + Gemini" for current, real-time data<br/>
     - Add Firecrawl API key for better web scraping (optional)<br/>
-    - Multiple Choice questions will show all options in the expanded view<br/>
-    - Code-based questions will display syntax-highlighted code<br/>
-    - Review questions before sharing with candidates<br/>
-    - Use ChromaDB for RAG to maintain up-to-date knowledge base
+    - Multiple Choice questions show all options with detailed explanations<br/>
+    - Code-based questions display syntax-highlighted code blocks<br/>
+    - Review questions before sharing with candidates
     </div>
     """, unsafe_allow_html=True)
 
