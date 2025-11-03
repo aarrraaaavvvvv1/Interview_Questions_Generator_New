@@ -11,7 +11,8 @@ class GeminiHandler:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
-    def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000, retry_count: int = 3) -> Optional[str]:
+    def generate_content(self, prompt: str, temperature: float = 0.7, max_tokens: int = 10000, retry_count: int = 3) -> Optional[str]:
+        """Generate content with retry logic"""
         for attempt in range(retry_count):
             try:
                 generation_config = genai.types.GenerationConfig(
@@ -29,11 +30,8 @@ class GeminiHandler:
                 else:
                     raise Exception(f"Gemini API error after {retry_count} retries: {str(e)}")
     
-    def generate_with_context(self, base_prompt: str, context: str = "", temperature: float = 0.7, max_tokens: int = 2000) -> Optional[str]:
-        full_prompt = f"{base_prompt}\n\nContext:\n{context}" if context else base_prompt
-        return self.generate_content(full_prompt, temperature, max_tokens)
-    
     def validate_api_key(self) -> bool:
+        """Test if API key is valid"""
         try:
             self.model.generate_content("Test")
             return True
