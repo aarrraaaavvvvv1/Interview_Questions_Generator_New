@@ -1,242 +1,341 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Preformatted
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Preformatted
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY
 from typing import Dict
 from datetime import datetime
 import os
 import re
 
 class PDFGenerator:
-    """Generates perfectly formatted PDF documents from questions data"""
+    """Generates perfectly formatted PDF documents with proper text alignment and containment"""
     
     def __init__(self):
         self.page_size = letter
         self.styles = getSampleStyleSheet()
+        self.page_width, self.page_height = letter
+        self.margin = 0.6*inch  # Reduced margin
+        self.usable_width = self.page_width - (2 * self.margin)
         self._create_custom_styles()
     
     def _create_custom_styles(self):
-        """Create custom styles for different question types"""
+        """Create custom styles with proper text containment"""
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=24,
+            fontSize=18,
             textColor=colors.HexColor('#1f77b4'),
-            spaceAfter=30,
-            alignment=1  # Center
+            spaceAfter=20,
+            spaceBefore=10,
+            alignment=1,  # Center
+            splitLongWords=True,
+            wordWrap='CJK'
         ))
         
         self.styles.add(ParagraphStyle(
-            name='QuestionStyle',
+            name='QuestionNumber',
             parent=self.styles['Heading2'],
-            fontSize=12,
+            fontSize=11,
             textColor=colors.HexColor('#2c3e50'),
-            spaceAfter=10,
-            spaceBefore=15
+            spaceAfter=8,
+            spaceBefore=12,
+            splitLongWords=True,
+            wordWrap='CJK'
         ))
         
         self.styles.add(ParagraphStyle(
-            name='AnswerStyle',
+            name='QuestionText',
             parent=self.styles['Normal'],
             fontSize=10,
-            leftIndent=15,
-            rightIndent=15,
-            spaceAfter=12,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=8,
+            leftIndent=0.1*inch,
+            rightIndent=0.1*inch,
+            splitLongWords=True,
+            wordWrap='CJK',
+            alignment=TA_JUSTIFY
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='AnswerLabel',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#2c3e50'),
+            spaceAfter=6,
+            spaceBefore=6,
+            leftIndent=0.1*inch,
+            bold=True,
+            splitLongWords=True,
+            wordWrap='CJK'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='AnswerText',
+            parent=self.styles['Normal'],
+            fontSize=9,
             textColor=colors.HexColor('#34495e'),
-            backColor=colors.HexColor('#f9f9f9')
+            spaceAfter=10,
+            leftIndent=0.15*inch,
+            rightIndent=0.1*inch,
+            splitLongWords=True,
+            wordWrap='CJK',
+            alignment=TA_JUSTIFY,
+            backColor=colors.HexColor('#f9f9f9'),
+            borderColor=colors.HexColor('#e0e0e0'),
+            borderWidth=0.5,
+            borderPadding=8,
+            leading=11
         ))
         
         self.styles.add(ParagraphStyle(
-            name='MetadataStyle',
+            name='MCOptionText',
             parent=self.styles['Normal'],
             fontSize=9,
-            textColor=colors.grey,
-            spaceAfter=5
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=4,
+            leftIndent=0.2*inch,
+            rightIndent=0.1*inch,
+            fontName='Courier',
+            splitLongWords=True,
+            wordWrap='CJK'
         ))
         
         self.styles.add(ParagraphStyle(
-            name='MCOptionStyle',
-            parent=self.styles['Normal'],
-            fontSize=10,
-            leftIndent=20,
-            spaceBefore=3,
-            spaceAfter=3,
-            fontName='Courier'
-        ))
-        
-        self.styles.add(ParagraphStyle(
-            name='CodeStyle',
+            name='CodeText',
             parent=self.styles['Code'],
-            fontSize=9,
-            leftIndent=20,
-            rightIndent=20,
+            fontSize=8,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=8,
+            leftIndent=0.15*inch,
+            rightIndent=0.1*inch,
             backColor=colors.HexColor('#f5f5f5'),
             borderColor=colors.HexColor('#ddd'),
             borderWidth=1,
-            borderPadding=10,
-            fontName='Courier'
+            borderPadding=6,
+            fontName='Courier',
+            leading=9,
+            splitLongWords=True,
+            wordWrap='CJK'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='MetadataText',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            textColor=colors.grey,
+            spaceAfter=4,
+            leftIndent=0.1*inch,
+            rightIndent=0.1*inch,
+            splitLongWords=True,
+            wordWrap='CJK'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='HeaderMetadata',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            textColor=colors.HexColor('#666666'),
+            spaceAfter=6,
+            splitLongWords=True,
+            wordWrap='CJK'
         ))
     
-    def _format_question_for_pdf(self, question_text: str, q_type: str) -> list:
-        """Format question based on type for PDF"""
-        elements = []
-        
-        if q_type == "Multiple Choice":
-            # Split question and options
-            lines = question_text.split('\n')
-            if lines:
-                # Question text (before options)
-                question_part = lines[0]
-                elements.append(Paragraph(question_part, self.styles['Normal']))
-                elements.append(Spacer(1, 0.1*inch))
-                
-                # Options (A, B, C, D)
-                for line in lines[1:]:
-                    if line.strip():
-                        elements.append(Paragraph(line, self.styles['MCOptionStyle']))
-        
-        elif q_type in ["Code-based", "Debugging"]:
-            # Handle code in question
-            if '```' in question_text:
-                parts = question_text.split('```')
-                for i, part in enumerate(parts):
-                    if i % 2 == 1:  # Code block
-                        elements.append(Preformatted(part.strip(), self.styles['CodeStyle']))
-                    else:  # Regular text
-                        if part.strip():
-                            elements.append(Paragraph(part.strip(), self.styles['Normal']))
-            else:
-                elements.append(Paragraph(question_text, self.styles['Normal']))
-        
-        else:
-            # Regular question types
-            elements.append(Paragraph(question_text, self.styles['Normal']))
-        
-        return elements
+    def _truncate_text(self, text: str, max_length: int = 500) -> str:
+        """Truncate text to prevent overflow"""
+        if len(text) > max_length:
+            return text[:max_length] + "..."
+        return text
     
-    def _format_answer_for_pdf(self, answer_text: str, q_type: str) -> list:
-        """Format answer based on type for PDF"""
-        elements = []
+    def _sanitize_html(self, text: str) -> str:
+        """Sanitize HTML entities for ReportLab"""
+        text = text.replace("&", "&amp;")
+        text = text.replace("<", "&lt;")
+        text = text.replace(">", "&gt;")
+        text = text.replace('"', "&quot;")
+        return text
+    
+    def _wrap_text(self, text: str, max_length: int = 400) -> str:
+        """Wrap long text to prevent overflow"""
+        if len(text) > max_length:
+            words = text.split()
+            lines = []
+            current_line = []
+            
+            for word in words:
+                current_line.append(word)
+                if len(" ".join(current_line)) > max_length:
+                    lines.append(" ".join(current_line[:-1]))
+                    current_line = [word]
+            
+            if current_line:
+                lines.append(" ".join(current_line))
+            
+            return "<br/>".join(lines)
         
+        return text
+    
+    def _format_mc_question(self, elements: list, question_text: str):
+        """Format Multiple Choice question with proper containment"""
+        lines = question_text.split('\n')
+        
+        if lines:
+            # Question text (before options)
+            q_text = self._sanitize_html(lines[0][:300])
+            elements.append(Paragraph(q_text, self.styles['QuestionText']))
+            elements.append(Spacer(1, 0.08*inch))
+            
+            # Options (A, B, C, D)
+            for line in lines[1:]:
+                if line.strip():
+                    option_text = self._sanitize_html(line.strip()[:200])
+                    elements.append(Paragraph(option_text, self.styles['MCOptionText']))
+            
+            elements.append(Spacer(1, 0.1*inch))
+    
+    def _format_code_question(self, elements: list, question_text: str):
+        """Format Code-based question with proper wrapping"""
+        question_text = self._sanitize_html(question_text[:400])
+        wrapped = self._wrap_text(question_text)
+        elements.append(Paragraph(wrapped, self.styles['QuestionText']))
+        elements.append(Spacer(1, 0.08*inch))
+    
+    def _format_code_answer(self, elements: list, answer_text: str):
+        """Format code answer with proper containment"""
+        if '```' in answer_text:
+            parts = answer_text.split('```')
+            
+            for i, part in enumerate(parts):
+                if i % 2 == 1:  # Code block
+                    # Truncate long code
+                    code_part = part.strip()[:300]
+                    code_text = self._sanitize_html(code_part)
+                    # Split code into lines to prevent horizontal overflow
+                    code_lines = code_text.split('\n')
+                    short_lines = [line[:80] for line in code_lines]  # Limit line length
+                    formatted_code = "<br/>".join(short_lines)
+                    elements.append(Paragraph(formatted_code, self.styles['CodeText']))
+                else:  # Regular text
+                    if part.strip():
+                        text_part = self._sanitize_html(part.strip()[:200])
+                        wrapped = self._wrap_text(text_part)
+                        elements.append(Paragraph(wrapped, self.styles['QuestionText']))
+        else:
+            # No code blocks, truncate and wrap
+            answer_text = self._sanitize_html(answer_text[:300])
+            wrapped = self._wrap_text(answer_text)
+            elements.append(Paragraph(wrapped, self.styles['CodeText']))
+        
+        elements.append(Spacer(1, 0.08*inch))
+    
+    def _format_answer_text(self, elements: list, answer_text: str, q_type: str):
+        """Format answer based on type with proper containment"""
         if q_type in ["Code-based", "Debugging"]:
-            # Extract code blocks from answer
-            if '```' in answer_text:
-                parts = answer_text.split('```')
-                for i, part in enumerate(parts):
-                    if i % 2 == 1:  # Code block
-                        elements.append(Spacer(1, 0.05*inch))
-                        elements.append(Preformatted(part.strip(), self.styles['CodeStyle']))
-                        elements.append(Spacer(1, 0.05*inch))
-                    else:  # Regular text
-                        if part.strip():
-                            elements.append(Paragraph(f"<b>Answer:</b> {part.strip()}", self.styles['AnswerStyle']))
-            else:
-                elements.append(Preformatted(answer_text, self.styles['CodeStyle']))
-        
-        elif q_type == "Multiple Choice":
-            # Format MC answer with highlighting
-            elements.append(Paragraph(f"<b>Answer:</b> {answer_text}", self.styles['AnswerStyle']))
-        
+            self._format_code_answer(elements, answer_text)
         else:
-            # Regular answer
-            elements.append(Paragraph(f"<b>Answer:</b> {answer_text}", self.styles['AnswerStyle']))
-        
-        return elements
+            # Truncate and sanitize
+            answer_text = self._sanitize_html(answer_text[:400])
+            wrapped = self._wrap_text(answer_text)
+            elements.append(Paragraph(wrapped, self.styles['AnswerText']))
+            elements.append(Spacer(1, 0.06*inch))
     
-    def generate_pdf(self, questions_data: Dict, filename: str, include_metadata: bool = True, topic: str = "", difficulty: str = "", generic_percentage: int = 60) -> str:
-        """Generate PDF with perfect formatting for all question types"""
+    def generate_pdf(self, questions_data: Dict, filename: str, include_metadata: bool = True, 
+                    topic: str = "", difficulty: str = "", generic_percentage: int = 60) -> str:
+        """Generate PDF with perfect text alignment and containment"""
         os.makedirs("generated_pdfs", exist_ok=True)
         pdf_path = os.path.join("generated_pdfs", f"{filename}.pdf")
         
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=self.page_size,
-            rightMargin=0.75*inch,
-            leftMargin=0.75*inch,
-            topMargin=1*inch,
-            bottomMargin=0.75*inch
+            rightMargin=self.margin,
+            leftMargin=self.margin,
+            topMargin=0.75*inch,
+            bottomMargin=0.6*inch,
+            title="Interview Questions"
         )
         
         elements = []
         
         # Title
-        title = Paragraph(f"Interview Questions: {topic}", self.styles['CustomTitle'])
+        title_text = self._sanitize_html(f"Interview Questions: {topic[:50]}")
+        title = Paragraph(title_text, self.styles['CustomTitle'])
         elements.append(title)
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Spacer(1, 0.15*inch))
         
         # Metadata
         if include_metadata:
-            metadata_text = self._create_metadata(questions_data, difficulty, generic_percentage)
-            elements.append(metadata_text)
-            elements.append(Spacer(1, 0.2*inch))
+            generation_time = questions_data.get('generation_time', 'N/A')
+            total_questions = questions_data.get('total_questions', 0)
+            generic_count = questions_data.get('generic_count', 0)
+            practical_count = questions_data.get('practical_count', 0)
+            question_types = ", ".join(questions_data.get('question_types', [])[:3])  # Limit types shown
+            
+            metadata_text = f"""Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 
+Difficulty: {difficulty} | Types: {question_types} | 
+Total: {total_questions} | Generic: {generic_count} ({generic_percentage}%) | Time: {generation_time}s"""
+            
+            metadata_text = self._sanitize_html(metadata_text)
+            elements.append(Paragraph(metadata_text, self.styles['HeaderMetadata']))
+            elements.append(Spacer(1, 0.12*inch))
         
         # Questions
+        question_count = len(questions_data.get("questions", []))
+        
         for idx, question_data in enumerate(questions_data.get("questions", []), 1):
             q_type = question_data.get('type', 'N/A')
+            difficulty_q = question_data.get('difficulty', 'N/A')
             
-            # Question number and type
-            question_header = f"<b>Question {idx}</b> ({q_type} - {question_data.get('difficulty', 'N/A')})"
-            elements.append(Paragraph(question_header, self.styles['QuestionStyle']))
+            # Question header
+            header_text = f"<b>Q{idx}.</b> {q_type} ({difficulty_q})"
+            elements.append(Paragraph(header_text, self.styles['QuestionNumber']))
             
             # Category
             if question_data.get('category'):
-                category_text = f"<i>Category: {question_data['category']}</i>"
-                elements.append(Paragraph(category_text, self.styles['MetadataStyle']))
-                elements.append(Spacer(1, 0.05*inch))
+                cat_text = self._sanitize_html(f"Category: {question_data['category'][:50]}")
+                elements.append(Paragraph(cat_text, self.styles['MetadataText']))
             
             # Question content
             question_text = question_data.get('question', '')
-            question_elements = self._format_question_for_pdf(question_text, q_type)
-            for elem in question_elements:
-                elements.append(elem)
             
-            elements.append(Spacer(1, 0.1*inch))
+            if q_type == "Multiple Choice":
+                self._format_mc_question(elements, question_text)
+            elif q_type in ["Code-based", "Debugging"]:
+                self._format_code_question(elements, question_text)
+            else:
+                question_text = self._sanitize_html(question_text[:350])
+                wrapped = self._wrap_text(question_text)
+                elements.append(Paragraph(wrapped, self.styles['QuestionText']))
+                elements.append(Spacer(1, 0.06*inch))
             
             # Answer
             if question_data.get('answer'):
+                elements.append(Paragraph("<b>Answer:</b>", self.styles['AnswerLabel']))
                 answer_text = question_data['answer']
-                answer_elements = self._format_answer_for_pdf(answer_text, q_type)
-                for elem in answer_elements:
-                    elements.append(elem)
+                self._format_answer_text(elements, answer_text, q_type)
             
-            # Keywords
+            # Keywords (truncated)
             if question_data.get('keywords'):
-                keywords_text = f"<i>Keywords: {', '.join(question_data['keywords'])}</i>"
-                elements.append(Spacer(1, 0.05*inch))
-                elements.append(Paragraph(keywords_text, self.styles['MetadataStyle']))
+                keywords = ", ".join(question_data['keywords'][:2])  # Limit to 2 keywords
+                kw_text = self._sanitize_html(f"Keywords: {keywords}")
+                elements.append(Paragraph(kw_text, self.styles['MetadataText']))
             
-            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Spacer(1, 0.15*inch))
             
-            # Page break every 3 questions (except last)
-            if idx % 3 == 0 and idx < len(questions_data.get("questions", [])):
+            # Page break every 2-3 questions to manage space
+            if idx % 3 == 0 and idx < question_count:
                 elements.append(PageBreak())
         
         # Footer
-        elements.append(Spacer(1, 0.3*inch))
-        footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Total Questions: {len(questions_data.get('questions', []))}"
-        elements.append(Paragraph(footer_text, self.styles['MetadataStyle']))
+        elements.append(Spacer(1, 0.15*inch))
+        footer_text = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Total Questions: {question_count}"
+        footer_text = self._sanitize_html(footer_text)
+        elements.append(Paragraph(footer_text, self.styles['MetadataText']))
         
         # Build PDF
-        doc.build(elements)
-        return pdf_path
-    
-    def _create_metadata(self, questions_data: Dict, difficulty: str, generic_percentage: int) -> Paragraph:
-        """Create metadata section for PDF"""
-        generation_time = questions_data.get('generation_time', 'N/A')
-        total_questions = questions_data.get('total_questions', 0)
-        generic_count = questions_data.get('generic_count', 0)
-        practical_count = questions_data.get('practical_count', 0)
-        question_types = ", ".join(questions_data.get('question_types', []))
-        
-        metadata = f"""<b>Document Information:</b><br/>
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>
-Difficulty Level: {difficulty}<br/>
-Question Types: {question_types}<br/>
-Total Questions: {total_questions}<br/>
-Generic Questions: {generic_count} ({generic_percentage}%)<br/>
-Practical Questions: {practical_count} ({100-generic_percentage}%)<br/>
-Generation Time: {generation_time}s"""
-        
-        return Paragraph(metadata, self.styles['Normal'])
+        try:
+            doc.build(elements)
+            return pdf_path
+        except Exception as e:
+            raise Exception(f"Error building PDF: {str(e)}")
