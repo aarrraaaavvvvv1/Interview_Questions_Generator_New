@@ -2,7 +2,7 @@ import time, uuid
 from typing import List, Dict
 from modules.gemini_handler import GeminiHandler
 from modules.schemas import GenerationResult
-from utils.json_safety import try_load_json
+from app_utils.json_safety import try_load_json
 SYSTEM_INSTRUCTIONS = """You are an expert technical interviewer. Generate high-quality interview questions.
 Output MUST be a single JSON object with the following keys:
 - topic (string)
