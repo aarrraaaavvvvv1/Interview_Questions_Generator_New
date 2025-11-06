@@ -6,7 +6,7 @@ from modules.gemini_handler import GeminiHandler
 from modules.question_generator import QuestionGenerator
 from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
-from utils.helpers import sanitize_filename, format_duration
+from app_utils.helpers import sanitize_filename, format_duration
 
 load_dotenv()
 st.set_page_config(page_title="Interview Questions Generator", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
