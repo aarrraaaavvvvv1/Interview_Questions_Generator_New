@@ -1,393 +1,156 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+from config import MODEL_NAME
 from modules.gemini_handler import GeminiHandler
 from modules.question_generator import QuestionGenerator
 from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
+from utils.helpers import sanitize_filename, format_duration
 
 load_dotenv()
+st.set_page_config(page_title="Interview Questions Generator", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
 
-st.set_page_config(
-    page_title="Interview Questions Generator",
-    page_icon="🎯",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+def health_chip(label: str, ok: bool):
+    color = "#22c55e" if ok else "#ef4444"
+    st.markdown(f"<span style='background:{color};padding:2px 8px;border-radius:999px;color:white;font-size:12px'>{label}</span>", unsafe_allow_html=True)
 
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        margin-bottom: 1rem;
-    }
-    .info-box {
-        background-color: #e8f4f8;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #1f77b4;
-        color: #0d3b66;
-    }
-    .tips-box {
-        background-color: #fff3cd;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #ff9800;
-        color: #333333;
-    }
-    .mc-question {
-        background-color: #f5f5f5;
-        padding: 0.8rem;
-        border-radius: 0.3rem;
-        margin: 0.5rem 0;
-        font-family: monospace;
-        word-wrap: break-word;
-    }
-    </style>
-""", unsafe_allow_html=True)
+def parse_urls(text: str):
+    items = []
+    for line in (text or '').splitlines():
+        line = line.strip().strip(',')
+        if line and (line.startswith('http://') or line.startswith('https://')):
+            items.append(line)
+    return items
 
-if "questions_generated" not in st.session_state:
-    st.session_state.questions_generated = False
-    st.session_state.questions_data = None
+def sidebar_form():
+    st.sidebar.header("Configuration")
+    topic = st.sidebar.text_input("Main Topic*", placeholder="e.g., Python Data Structures")
+    subtopics = st.sidebar.text_area("Sub-topics / Context (optional, one per line)", height=120)
+    num_questions = st.sidebar.slider("Total Questions", 3, 40, 10, 1)
+    generic_pct = st.sidebar.slider("Generic %", 0, 100, 40, 5)
+    difficulty = st.sidebar.selectbox("Difficulty", ["easy", "medium", "hard"], index=1)
+    qtypes = st.sidebar.multiselect("Question Types", ["mcq","coding","short","theory"], default=["mcq","short","theory"])
+    include_answers = st.sidebar.checkbox("Include Answers/Explanations", True)
+    st.sidebar.markdown("---")
+    use_web = st.sidebar.checkbox("Use Web Scraping (paste URLs below)")
+    urls_text = st.sidebar.text_area("URLs (one per line)", height=120, disabled=not use_web)
+    st.sidebar.markdown("---")
 
-def display_question(q_obj, include_answers):
-    """Display question based on its type with proper formatting"""
-    q_type = q_obj.get('type', 'N/A')
-    
-    st.write(f"**Type:** {q_type}")
-    st.write(f"**Difficulty:** {q_obj.get('difficulty', 'N/A')}")
-    st.write(f"**Category:** {q_obj.get('category', 'Generic' if q_obj.get('is_generic') else 'Practical')}")
-    
-    if q_type == "Multiple Choice":
-        question_text = q_obj.get('question', '')
-        st.markdown("**Question:**")
-        st.markdown(f'<div class="mc-question">{question_text.replace(chr(10), "<br>")}</div>', unsafe_allow_html=True)
-        
-        if include_answers and "answer" in q_obj:
-            st.markdown("---")
-            st.markdown("**Answer:**")
-            st.success(q_obj["answer"])
-    
-    elif q_type in ["Code-based", "Debugging"]:
-        st.markdown("**Question:**")
-        st.write(q_obj.get('question', ''))
-        
-        if include_answers and "answer" in q_obj:
-            st.markdown("---")
-            st.markdown("**Answer:**")
-            answer_text = q_obj["answer"]
-            if '```' in answer_text:
-                parts = answer_text.split('```')
-                for i, part in enumerate(parts):
-                    if i % 2 == 1:
-                        st.code(part.strip())
-                    else:
-                        if part.strip():
-                            st.write(part.strip())
-            else:
-                st.code(answer_text)
-    
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    firecrawl_key = os.getenv("FIRECRAWL_API_KEY", "")
+
+    # Health chips
+    st.sidebar.Write = st.sidebar.write  # silence lints
+    st.sidebar.write("**Services**")
+    if gemini_key:
+        try:
+            gh = GeminiHandler(gemini_key)
+            ok = gh.validate_api_key()
+        except Exception:
+            ok = False
     else:
-        st.markdown("**Question:**")
-        st.write(q_obj.get('question', ''))
-        
-        if include_answers and "answer" in q_obj:
-            st.markdown("---")
-            st.markdown("**Answer:**")
-            st.info(q_obj["answer"])
-    
-    if q_obj.get('keywords'):
-        st.caption("**Keywords:** " + ", ".join(q_obj['keywords']))
+        ok = False
+    health_chip("Gemini", ok)
+    health_chip("Firecrawl", bool(firecrawl_key))
+
+    if st.sidebar.button("Generate 🎯", type="primary", use_container_width=True):
+        st.session_state._trigger = True
+    return dict(
+        topic=topic.strip() if topic else "",
+        subtopics=[s.strip() for s in (subtopics.splitlines() if subtopics else []) if s.strip()],
+        num_questions=num_questions,
+        generic_pct=generic_pct,
+        difficulty=difficulty,
+        qtypes=qtypes,
+        include_answers=include_answers,
+        use_web=use_web,
+        urls=parse_urls(urls_text),
+        gemini_ok=ok
+    )
+
+def render_questions(payload: dict):
+    st.subheader("Results")
+    cols = st.columns(4)
+    cols[0].metric("Total", payload.get("total_questions", 0))
+    cols[1].metric("Generic", payload.get("generic_count", 0))
+    cols[2].metric("Practical", payload.get("practical_count", 0))
+    cols[3].metric("Time", format_duration(payload.get("generation_time", 0.0)))
+
+    for i, q in enumerate(payload.get("questions", []), start=1):
+        with st.expander(f"Q{i}. {q.get('text','(no text)')}", expanded=False):
+            st.write(f"**Type:** {q.get('type','-')} | **Difficulty:** {q.get('difficulty','-')} | {'Generic' if q.get('is_generic') else 'Practical'}")
+            if q.get("type") == "mcq" and isinstance(q.get("options"), list):
+                for idx, opt in enumerate(q["options"], start=1):
+                    check = "✅ " if opt.get("is_correct") else ""
+                    st.write(f"{idx}. {opt.get('option','')}{' ' + check if check else ''}")
+                if q.get("explanation"):
+                    st.info(f"Explanation: {q.get('explanation')}")
+            if q.get("type") == "coding" and q.get("code"):
+                st.code(q.get("code"), language="python")
+            if q.get("answer") and q.get("type") != "mcq":
+                st.success(f"Answer: {q.get('answer')}")
+            if q.get("explanation") and q.get("type") != "mcq":
+                st.info(f"Explanation: {q.get('explanation')}")
 
 def main():
-    st.markdown('<div class="main-header">🎯 Interview Questions Generator</div>', unsafe_allow_html=True)
-    
-    with st.sidebar:
-        st.header("⚙️ Configuration")
-        
-        data_source = st.radio(
-            "Select Data Source",
-            options=["Gemini Only", "Web Scraping + Gemini"],
-            help="Use web scraping to get current, real-time data for your questions"
-        )
-        
-        web_scraper_enabled = data_source == "Web Scraping + Gemini"
-        
-        st.divider()
-        st.subheader("API Configuration")
-        
-        api_key = st.text_input(
-            "Gemini API Key",
-            value=os.getenv("GEMINI_API_KEY", ""),
-            type="password",
-            help="Get your API key from https://aistudio.google.com/app/apikey"
-        )
-        
-        st.markdown("[🔑 Get your Gemini API Key](https://aistudio.google.com/app/apikey)")
-        
-        if not api_key and not os.getenv("GEMINI_API_KEY"):
-            st.warning("⚠️ Please provide a Gemini API Key")
-        
-        st.divider()
-        st.subheader("Optional: Web Scraping")
-        
-        firecrawl_key = st.text_input(
-            "Firecrawl API Key (Optional)",
-            value=os.getenv("FIRECRAWL_API_KEY", ""),
-            type="password",
-            help="For better web scraping. Get at https://firecrawl.dev (free tier available)"
-        )
-        
-        st.markdown("[🔥 Get Firecrawl API Key](https://firecrawl.dev) (Optional)")
-        
-        st.divider()
-        st.subheader("Model Selection")
-        
-        model_name = st.selectbox(
-            "Select Gemini Model",
-            options=[
-                "models/gemini-2.5-flash",
-                "models/gemini-2.5-pro",
-                "models/gemini-2.5-flash-lite"
-            ],
-            help="gemini-2.5-flash is recommended (fast & accurate)"
-        )
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("📝 Question Generation Parameters")
-        
-        topic = st.text_input(
-            "Interview Topic",
-            placeholder="e.g., Python for Data Science",
-            help="The main topic for which to generate interview questions"
-        )
-        
-        context_input = st.text_area(
-            "Sub-topics (one per line)",
-            placeholder="e.g., NumPy\nPandas\nMatplotlib\nScikit-learn",
-            help="Enter sub-topics related to your main topic"
-        )
-        
-        col_a, col_b = st.columns(2)
-        
-        with col_a:
-            num_questions = st.number_input(
-                "Number of Questions",
-                min_value=1,
-                max_value=50,
-                value=10,
-                help="Total number of questions to generate"
+    st.title("🎯 Interview Questions Generator")
+    cfg = sidebar_form()
+
+    if st.session_state.get("_trigger") and cfg["topic"]:
+        st.session_state._trigger = False
+        with st.spinner("Generating questions..."):
+            # Setup services
+            gh = GeminiHandler(os.getenv("GEMINI_API_KEY", ""))
+            qg = QuestionGenerator(gh)
+            scraper = WebScraper(os.getenv("FIRECRAWL_API_KEY", ""))
+
+            # Build context
+            context = list(cfg["subtopics"])
+            scraped = []
+            if cfg["use_web"] and cfg["urls"]:
+                scraped = scraper.extract_many(cfg["urls"])
+                if scraped:
+                    st.info(f"Scraped {len(scraped)} source(s). Adding context from the web.")
+                    # append a short snippet per source
+                    for url, text in scraped:
+                        context.append(f"[Source] {url} :: {text[:300]}")
+
+            # Generate
+            payload = qg.generate_questions(
+                topic=cfg["topic"],
+                context=context,
+                num_questions=cfg["num_questions"],
+                generic_percentage=cfg["generic_pct"],
+                difficulty_level=cfg["difficulty"],
+                question_types=cfg["qtypes"],
+                include_answers=cfg["include_answers"]
             )
-        
-        with col_b:
-            generic_percentage = st.slider(
-                "Generic Questions %",
-                min_value=0,
-                max_value=100,
-                value=60,
-                step=5,
-                help="Percentage of generic/theoretical questions vs practical questions"
-            )
-        
-        practical_percentage = 100 - generic_percentage
-        
-        st.info(f"📊 Distribution: {generic_percentage}% Generic | {practical_percentage}% Practical Questions")
-    
-    with col2:
-        st.subheader("📋 Quick Settings")
-        
-        difficulty_level = st.select_slider(
-            "Difficulty Level",
-            options=["Beginner", "Intermediate", "Advanced", "Expert"],
-            value="Intermediate"
-        )
-        
-        question_type = st.multiselect(
-            "Question Types",
-            options=[
-                "Multiple Choice",
-                "Short Answer",
-                "Long Answer",
-                "Code-based",
-                "Scenario-based",
-                "Debugging"
-            ],
-            default=["Short Answer", "Long Answer"],
-            help="Select types of questions to include"
-        )
-        
-        include_answers = st.checkbox(
-            "Include Detailed Answers",
-            value=True,
-            help="Generate detailed answers for each question"
-        )
-    
-    st.divider()
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
-    
-    with col2:
-        generate_button = st.button(
-            "🚀 Generate Questions",
-            use_container_width=True,
-            type="primary"
-        )
-    
-    if generate_button:
-        if not topic:
-            st.error("❌ Please enter a topic")
-        elif not api_key and not os.getenv("GEMINI_API_KEY"):
-            st.error("❌ Please provide a Gemini API Key")
-        elif not question_type:
-            st.error("❌ Please select at least one question type")
-        else:
+            st.session_state.payload = payload
+            render_questions(payload)
+
+    # Export section
+    payload = st.session_state.get("payload")
+    if payload:
+        pdf = PDFGenerator()
+        fname = sanitize_filename(f"{payload.get('topic','Interview')}_QnA.pdf")
+        if st.button("Download PDF ⬇️", use_container_width=True):
             try:
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                status_text.text("🔄 Initializing...")
-                progress_bar.progress(10)
-                
-                gemini_handler = GeminiHandler(api_key or os.getenv("GEMINI_API_KEY"), model_name)
-                question_generator = QuestionGenerator(gemini_handler)
-                
-                status_text.text("📝 Processing sub-topics...")
-                progress_bar.progress(20)
-                
-                context = [c.strip() for c in context_input.split("\n") if c.strip()] if context_input else []
-                
-                enhanced_context = ""
-                if web_scraper_enabled:
-                    status_text.text("🌐 Fetching current data from web...")
-                    progress_bar.progress(40)
-                    scraper = WebScraper(firecrawl_api_key=firecrawl_key or os.getenv("FIRECRAWL_API_KEY", ""))
-                    enhanced_context = scraper.scrape_topic(topic, context)
-                    progress_bar.progress(60)
-                
-                status_text.text("🤖 Generating questions with Gemini...")
-                progress_bar.progress(70)
-                
-                questions_data = question_generator.generate_questions(
-                    topic=topic,
-                    context=context,
-                    num_questions=num_questions,
-                    generic_percentage=generic_percentage,
-                    difficulty_level=difficulty_level,
-                    question_types=question_type,
-                    include_answers=include_answers,
-                    enhanced_context=enhanced_context
-                )
-                
-                progress_bar.progress(90)
-                status_text.text("✅ Processing results...")
-                progress_bar.progress(100)
-                
-                st.session_state.questions_generated = True
-                st.session_state.questions_data = questions_data
-                
-                status_text.empty()
-                progress_bar.empty()
-                st.success("✅ Questions generated successfully!")
-                    
+                pdf_path = pdf.generate(payload, filename=fname)
+                with open(pdf_path, "rb") as f:
+                    st.download_button("Save PDF file", f, file_name=fname, mime="application/pdf", use_container_width=True)
             except Exception as e:
-                progress_bar.empty()
-                status_text.empty()
-                st.error(f"❌ Error generating questions: {str(e)}")
-    
-    if st.session_state.questions_generated and st.session_state.questions_data:
-        st.divider()
-        st.subheader("📚 Generated Questions Preview")
-        
-        questions_data = st.session_state.questions_data
-        
-        for i, q_obj in enumerate(questions_data["questions"], 1):
-            with st.expander(f"Question {i}: {q_obj['question'][:60]}...", expanded=False):
-                display_question(q_obj, include_answers)
-        
-        st.divider()
-        
-        st.subheader("📄 Export to PDF")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            pdf_filename = st.text_input(
-                "PDF Filename",
-                value=f"Interview_Questions_{topic.replace(' ', '_')}",
-                help="Name for your PDF file (without .pdf extension)"
-            )
-        
-        with col2:
-            include_metadata = st.checkbox(
-                "Include Metadata",
-                value=True,
-                help="Include generation date, parameters, and metadata in PDF"
-            )
-        
-        if st.button("📥 Generate PDF", use_container_width=True, type="secondary"):
-            try:
-                with st.spinner("📄 Creating PDF... Please wait"):
-                    pdf_generator = PDFGenerator()
-                    pdf_path = pdf_generator.generate_pdf(
-                        questions_data=questions_data,
-                        filename=pdf_filename,
-                        include_metadata=include_metadata,
-                        topic=topic,
-                        difficulty=difficulty_level,
-                        generic_percentage=generic_percentage
-                    )
-                    
-                    with open(pdf_path, "rb") as pdf_file:
-                        st.download_button(
-                            label="⬇️ Download PDF",
-                            data=pdf_file,
-                            file_name=f"{pdf_filename}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    
-                    st.success(f"✅ PDF created successfully with proper formatting!")
-                    
-            except Exception as e:
-                st.error(f"❌ Error generating PDF: {str(e)}")
-        
-        st.divider()
-        st.subheader("📊 Generation Statistics")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        generic_count = sum(1 for q in questions_data["questions"] if q.get("is_generic"))
-        practical_count = len(questions_data["questions"]) - generic_count
-        
-        with col1:
-            st.metric("Total Questions", len(questions_data["questions"]))
-        with col2:
-            st.metric("Generic Questions", generic_count)
-        with col3:
-            st.metric("Practical Questions", practical_count)
-        with col4:
-            st.metric("Generation Time", f"{questions_data.get('generation_time', 'N/A')}s")
-    
-    st.divider()
+                st.error(f"PDF generation failed: {e}")
+
     st.markdown("""
-    <div class="tips-box">
-    <strong>💡 Tips:</strong><br/>
-    - Provide specific sub-topics for more relevant questions<br/>
-    - Adjust the generic/practical ratio based on your interview focus<br/>
-    - Enable "Web Scraping + Gemini" for current, real-time data<br/>
-    - Add Firecrawl API key for better web scraping (optional)<br/>
-    - Multiple Choice questions show all options with detailed explanations<br/>
-    - Code-based questions display syntax-highlighted code blocks<br/>
-    - PDF text is now properly aligned and contained within page margins<br/>
+    ---
+    **Tips**
+    - Provide specific sub-topics for more relevant questions
+    - Adjust generic/practical ratio based on your interview focus
+    - Paste a handful of authoritative URLs to ground the model with fresh info
     - Review questions before sharing with candidates
-    </div>
-    """, unsafe_allow_html=True)
+    """)
+
 
 if __name__ == "__main__":
     main()
