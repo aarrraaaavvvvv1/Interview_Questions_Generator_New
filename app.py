@@ -116,6 +116,9 @@ def main():
             return
 
         st.session_state._trigger = False
+        if not cfg["gemini_ok"]:
+            st.error("Your Gemini API key is invalid or the selected model is unavailable. Please check your key or try again.")
+            return
         with st.spinner("Scraping web and generating questions..."):
             # Set up services using *per-user* keys
             gh = GeminiHandler(cfg["gemini_key"])
@@ -148,15 +151,20 @@ def main():
                     context.append(f"[Source] {url} :: {snippet}")
 
             # 3) Generate
-            payload = qg.generate_questions(
-                topic=cfg["topic"],
-                context=context,
-                num_questions=cfg["num_questions"],
-                generic_percentage=cfg["generic_pct"],
-                difficulty_level=cfg["difficulty"],
-                question_types=cfg["qtypes"],
-                include_answers=cfg["include_answers"]
-            )
+            try:
+                payload = qg.generate_questions(
+                    topic=cfg["topic"],
+                    context=context,
+                    num_questions=cfg["num_questions"],
+                    generic_percentage=cfg["generic_pct"],
+                    difficulty_level=cfg["difficulty"],
+                    question_types=cfg["qtypes"],
+                    include_answers=cfg["include_answers"]
+                )
+            except exception as e:
+                st.error(f"Gemini error: {e}")
+                st.stop()
+                
             st.session_state.payload = payload
             render_questions(payload)
 
