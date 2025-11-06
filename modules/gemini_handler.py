@@ -1,30 +1,56 @@
 import google.generativeai as genai
 import time
-from typing import Optional, Dict, Any
-from config import MODEL_NAME, TEMPERATURE, TOP_P, MAX_OUTPUT_TOKENS
+from typing import Optional, Dict, Any, List
+
+# Keep a small compatibility list; the first one that works will be used
+MODEL_CANDIDATES: List[str] = [
+    "gemini-1.5-flash",        # most installs of google-generativeai >=0.5
+    "gemini-1.5-pro",
+    "models/gemini-1.5-flash", # older code patterns
+    "models/gemini-1.5-pro"
+]
+
+DEFAULT_GEN_CFG = {
+    "temperature": 0.2,
+    "top_p": 0.8,
+    "max_output_tokens": 2048
+}
 
 class GeminiHandler:
-    """Wrapper for Gemini API interactions with retries and configurable params"""
+    """Wrapper for Gemini API with model fallback and good error messages."""
 
-    def __init__(self, api_key: str, model_name: str = MODEL_NAME):
-        self.api_key = api_key or ""
-        self.model_name = model_name
+    def __init__(self, api_key: str, preferred_model: Optional[str] = None):
+        self.api_key = (api_key or "").strip()
+        if not self.api_key:
+            raise ValueError("Gemini API key is empty.")
         genai.configure(api_key=self.api_key)
-        try:
-            self.model = genai.GenerativeModel(self.model_name)
-        except Exception:
-            # Delay instantiation errors until first call
-            self.model = None
 
-    def _ensure_model(self):
-        if self.model is None:
-            self.model = genai.GenerativeModel(self.model_name)
+        self.model_name = preferred_model or MODEL_CANDIDATES[0]
+        self.model = None
+        self._select_model()
+
+    def _select_model(self):
+        """Try to instantiate a working model from candidates."""
+        last_err = None
+        candidates = [self.model_name] + [m for m in MODEL_CANDIDATES if m != self.model_name]
+        for name in candidates:
+            try:
+                self.model = genai.GenerativeModel(name)
+                # ping
+                _ = self.model.generate_content("ping", generation_config={"max_output_tokens": 2})
+                self.model_name = name
+                return
+            except Exception as e:
+                last_err = e
+                self.model = None
+        raise RuntimeError(f"Failed to initialize a Gemini model. Last error: {last_err}")
 
     def _extract_text(self, response) -> str:
         try:
-            return response.text if hasattr(response, 'text') else response.candidates[0].content.parts[0].text
+            if hasattr(response, "text") and isinstance(response.text, str):
+                return response.text
+            return response.candidates[0].content.parts[0].text
         except Exception:
-            # Fallback best-effort
             return str(response)
 
     def generate(
@@ -33,13 +59,10 @@ class GeminiHandler:
         retry_count: int = 3,
         generation_config: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Generate content with backoff and basic extraction."""
-        self._ensure_model()
-        cfg = {
-            "temperature": TEMPERATURE,
-            "top_p": TOP_P,
-            "max_output_tokens": MAX_OUTPUT_TOKENS
-        }
+        if not self.model:
+            self._select_model()
+
+        cfg = dict(DEFAULT_GEN_CFG)
         if generation_config:
             cfg.update(generation_config)
 
@@ -50,17 +73,31 @@ class GeminiHandler:
                 return self._extract_text(resp)
             except Exception as e:
                 last_err = e
+                # common, actionable hints
+                hint = (
+                    "Check: 1) API key valid and has access, 2) quota not exhausted, "
+                    "3) model name supported for your google-generativeai version."
+                )
                 if attempt < retry_count - 1:
                     time.sleep(2 ** attempt)
-        raise Exception(f"Gemini API error after {retry_count} retries: {str(last_err)}")
+                else:
+                    raise Exception(f"Gemini API error after {retry_count} retries: {last_err}. {hint}")
 
     def validate_api_key(self) -> bool:
-        """Test if API key is valid"""
         try:
-            self.generate("Ping", retry_count=1, generation_config={"max_output_tokens": 4})
+            # call with current model; if it fails, try fallback selection
+            if not self.model:
+                self._select_model()
+            self.model.generate_content("ping", generation_config={"max_output_tokens": 2})
             return True
         except Exception:
-            return False
+            # try to re-select a model once more, then fail
+            try:
+                self._select_model()
+                self.model.generate_content("ping", generation_config={"max_output_tokens": 2})
+                return True
+            except Exception:
+                return False
 
     def get_health(self) -> str:
         return "ok" if self.validate_api_key() else "error"
