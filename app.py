@@ -57,7 +57,9 @@ def sidebar_form():
     health_chip("Gemini", gemini_ok)
     health_chip("Firecrawl", bool(firecrawl_key))
 
-    if st.sidebar.button("Generate 🎯", type="primary", use_container_width=True):
+    disable_generate = not gemini_ok or not gemini_key or not topic
+
+    if st.sidebar.button("Generate 🎯", type="primary", use_container_width=True, disabled=disable_generate):
         st.session_state._trigger = True
 
     return dict(
