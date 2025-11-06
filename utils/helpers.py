@@ -16,13 +16,13 @@ def split_text_into_chunks(text: str, chunk_size: int = 500) -> List[str]:
     current_chunk = []
     current_size = 0
     for word in words:
-        if current_size + len(word) > chunk_size:
-            chunks.append(' '.join(current_chunk))
-            current_chunk = [word]
-            current_size = len(word)
-        else:
+        if current_size + len(word) + 1 <= chunk_size:
             current_chunk.append(word)
             current_size += len(word) + 1
+        else:
+            chunks.append(' '.join(current_chunk))
+            current_chunk = [word]
+            current_size = len(word) + 1
     if current_chunk:
         chunks.append(' '.join(current_chunk))
     return chunks
