@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
 from config import MODEL_NAME
 from modules.gemini_handler import GeminiHandler
 from modules.question_generator import QuestionGenerator
@@ -8,12 +7,14 @@ from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
 from app_utils.helpers import sanitize_filename, format_duration
 
-load_dotenv()
 st.set_page_config(page_title="Interview Questions Generator", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
 
 def health_chip(label: str, ok: bool):
     color = "#22c55e" if ok else "#ef4444"
-    st.markdown(f"<span style='background:{color};padding:2px 8px;border-radius:999px;color:white;font-size:12px'>{label}</span>", unsafe_allow_html=True)
+    st.markdown(
+        f"<span style='background:{color};padding:2px 8px;border-radius:999px;color:white;font-size:12px'>{label}</span>",
+        unsafe_allow_html=True,
+    )
 
 def parse_urls(text: str):
     items = []
@@ -25,48 +26,52 @@ def parse_urls(text: str):
 
 def sidebar_form():
     st.sidebar.header("Configuration")
+
+    # API keys (per-user, not from .env)
+    with st.sidebar.expander("API Keys (per user)", expanded=True):
+        gemini_key = st.text_input("Gemini API Key*", type="password", help="Each user should use their own key.")
+        firecrawl_key = st.text_input("Firecrawl API Key (optional)", type="password", help="Improves scraping quality if available.")
+
     topic = st.sidebar.text_input("Main Topic*", placeholder="e.g., Python Data Structures")
-    subtopics = st.sidebar.text_area("Sub-topics / Context (optional, one per line)", height=120)
+    subtopics = st.sidebar.text_area("Sub-topics / Context (one per line)", height=120)
     num_questions = st.sidebar.slider("Total Questions", 3, 40, 10, 1)
     generic_pct = st.sidebar.slider("Generic %", 0, 100, 40, 5)
     difficulty = st.sidebar.selectbox("Difficulty", ["easy", "medium", "hard"], index=1)
-    qtypes = st.sidebar.multiselect("Question Types", ["mcq","coding","short","theory"], default=["mcq","short","theory"])
+    qtypes = st.sidebar.multiselect("Question Types", ["mcq", "coding", "short", "theory"], default=["mcq", "short", "theory"])
     include_answers = st.sidebar.checkbox("Include Answers/Explanations", True)
-    st.sidebar.markdown("---")
-    use_web = st.sidebar.checkbox("Use Web Scraping (paste URLs below)")
-    urls_text = st.sidebar.text_area("URLs (one per line)", height=120, disabled=not use_web)
-    st.sidebar.markdown("---")
 
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    firecrawl_key = os.getenv("FIRECRAWL_API_KEY", "")
+    st.sidebar.markdown("---")
+    # Optional: user-supplied URLs. If empty, we will auto-discover sources.
+    urls_text = st.sidebar.text_area("Optional URLs (one per line)", height=120)
+    st.sidebar.caption("If you leave this empty, the app will automatically discover relevant sources.")
 
-    # Health chips
-    st.sidebar.Write = st.sidebar.write  # silence lints
+    # Live health chips
     st.sidebar.write("**Services**")
+    gemini_ok = False
     if gemini_key:
         try:
-            gh = GeminiHandler(gemini_key)
-            ok = gh.validate_api_key()
+            gh_probe = GeminiHandler(gemini_key)
+            gemini_ok = gh_probe.validate_api_key()
         except Exception:
-            ok = False
-    else:
-        ok = False
-    health_chip("Gemini", ok)
+            gemini_ok = False
+    health_chip("Gemini", gemini_ok)
     health_chip("Firecrawl", bool(firecrawl_key))
 
     if st.sidebar.button("Generate 🎯", type="primary", use_container_width=True):
         st.session_state._trigger = True
+
     return dict(
-        topic=topic.strip() if topic else "",
+        gemini_key=gemini_key.strip(),
+        firecrawl_key=firecrawl_key.strip(),
+        topic=(topic or "").strip(),
         subtopics=[s.strip() for s in (subtopics.splitlines() if subtopics else []) if s.strip()],
         num_questions=num_questions,
         generic_pct=generic_pct,
         difficulty=difficulty,
         qtypes=qtypes,
         include_answers=include_answers,
-        use_web=use_web,
         urls=parse_urls(urls_text),
-        gemini_ok=ok
+        gemini_ok=gemini_ok
     )
 
 def render_questions(payload: dict):
@@ -97,26 +102,50 @@ def main():
     st.title("🎯 Interview Questions Generator")
     cfg = sidebar_form()
 
-    if st.session_state.get("_trigger") and cfg["topic"]:
+    if st.session_state.get("_trigger"):
+        if not cfg["gemini_key"]:
+            st.session_state._trigger = False
+            st.error("Please enter your Gemini API Key in the sidebar.")
+            return
+
+        if not cfg["topic"]:
+            st.session_state._trigger = False
+            st.error("Please enter a topic.")
+            return
+
         st.session_state._trigger = False
-        with st.spinner("Generating questions..."):
-            # Setup services
-            gh = GeminiHandler(os.getenv("GEMINI_API_KEY", ""))
+        with st.spinner("Scraping web and generating questions..."):
+            # Set up services using *per-user* keys
+            gh = GeminiHandler(cfg["gemini_key"])
             qg = QuestionGenerator(gh)
-            scraper = WebScraper(os.getenv("FIRECRAWL_API_KEY", ""))
+            scraper = WebScraper(cfg["firecrawl_key"])
 
-            # Build context
+            # 1) Build context
             context = list(cfg["subtopics"])
-            scraped = []
-            if cfg["use_web"] and cfg["urls"]:
-                scraped = scraper.extract_many(cfg["urls"])
-                if scraped:
-                    st.info(f"Scraped {len(scraped)} source(s). Adding context from the web.")
-                    # append a short snippet per source
-                    for url, text in scraped:
-                        context.append(f"[Source] {url} :: {text[:300]}")
 
-            # Generate
+            # 2) Use user URLs if any; otherwise auto-discover relevant sources
+            scraped = []
+            if cfg["urls"]:
+                scraped = scraper.extract_many(cfg["urls"])
+                auto_used = False
+            else:
+                # auto-discover relevant sources using topic+subtopics
+                query = cfg["topic"]
+                if cfg["subtopics"]:
+                    query += " " + " ".join(cfg["subtopics"])
+                discovered = scraper.auto_discover_sources(query=query, max_sources=3)
+                scraped = scraper.extract_many([u for (u, _) in discovered]) if discovered else []
+                auto_used = True
+
+            # Summarize scraped content into context snippets
+            if scraped:
+                st.info(f"Using {len(scraped)} web source(s){' (auto-discovered)' if auto_used else ''}.")
+                # Add a small snippet per source
+                for url, text in scraped:
+                    snippet = text[:300].replace("\n", " ")
+                    context.append(f"[Source] {url} :: {snippet}")
+
+            # 3) Generate
             payload = qg.generate_questions(
                 topic=cfg["topic"],
                 context=context,
@@ -144,13 +173,11 @@ def main():
 
     st.markdown("""
     ---
-    **Tips**
-    - Provide specific sub-topics for more relevant questions
-    - Adjust generic/practical ratio based on your interview focus
-    - Paste a handful of authoritative URLs to ground the model with fresh info
-    - Review questions before sharing with candidates
+    **How it works**
+    - Enter *your own* Gemini key (each user uses their own quota).
+    - Paste URLs if you want; otherwise the app auto-discovers relevant sources.
+    - Review questions before sharing with candidates.
     """)
-
 
 if __name__ == "__main__":
     main()
