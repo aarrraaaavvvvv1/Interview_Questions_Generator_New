@@ -31,12 +31,24 @@ class GeminiHandler:
         self,
         api_key: str = "",
         model_name: Optional[str] = None,
+        preferred_model: Optional[str] = None,
         temperature: float = 0.2,
         top_p: float = 0.8,
         max_output_tokens: int = 1024,
+        **kwargs,
     ):
+        """
+        Accepts both `model_name` and `preferred_model` (alias) to match callers.
+        Any additional kwargs are ignored (for forward compatibility).
+        """
         self.api_key = (api_key or "").strip()
-        self.model_name = model_name or MODEL_CANDIDATES[0]
+
+        # allow caller to pass preferred_model or model_name interchangeably
+        if preferred_model:
+            self.model_name = preferred_model
+        else:
+            self.model_name = model_name or MODEL_CANDIDATES[0]
+
         self.temperature = float(temperature)
         self.top_p = float(top_p)
         self.max_output_tokens = int(max_output_tokens)
