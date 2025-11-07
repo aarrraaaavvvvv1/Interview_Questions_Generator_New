@@ -1,5 +1,5 @@
 import time, uuid, json
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from modules.gemini_handler import GeminiHandler
 from modules.schemas import GenerationResult
 from app_utils.json_safety import try_load_json
@@ -14,20 +14,11 @@ Return ONLY a single JSON object with keys:
 - total_questions (int)
 - generic_count (int)
 - practical_count (int)
-- generation_time (float)   # leave 0.0; the app fills it
-- questions (array) where each item has:
-  - id (string, unique)
-  - type ("mcq"|"coding"|"short"|"theory")
-  - text (string)
-  - difficulty ("easy"|"medium"|"hard")
-  - is_generic (boolean)
-  - options (array, optional; for mcq) items: { "option": string, "is_correct": boolean, "explanation": string optional }
-  - answer (string, optional)
-  - explanation (string, optional)
-  - code (string, optional; for coding)
+- generation_time (float)
+- questions (array)
 
-Do not include any commentary or code fences — JSON only.
-All strings must be valid JSON strings (escape newlines as \\n, avoid stray quotes)."""
+If you return a top-level array, the app will wrap it automatically.
+Do NOT include any commentary or code fences — JSON only."""
 
 PROMPT_TEMPLATE = """{system}
 
@@ -42,17 +33,12 @@ REQUIREMENTS:
 - Allowed types: {question_types}
 - Include answers/explanations: {include_answers}
 
-MCQs: At least 4 options and exactly ONE with "is_correct": true (others false) + a brief explanation.
-Coding: Provide a brief problem and, if answers included, a short sample solution in "code".
-
 Return JSON ONLY.
 """
 
 FIX_TEMPLATE = """You previously returned invalid JSON. Repair it to valid minified JSON that matches the schema.
-Rules:
-- Return ONLY JSON (no comments, no markdown, no code fences).
-- Ensure all strings are properly escaped (\\n for newlines, quotes escaped).
-- Ensure MCQs have exactly one "is_correct": true.
+If you returned a list of questions, wrap it as:
+{{"topic": "<topic>", "context": [], "difficulty": "<difficulty>", "question_types": [], "questions": [ ... ]}}.
 
 Invalid JSON sample (truncated):
 {bad_snippet}
@@ -95,22 +81,42 @@ class QuestionGenerator:
                 q["id"] = uuid.uuid4().hex[:8]
         return payload
 
+    def _normalize_top_level(self, data):
+        """Ensure we always have a dict with 'questions' key."""
+        if isinstance(data, list):
+            # Gemini returned a plain array of questions
+            return {
+                "topic": "General",
+                "context": [],
+                "difficulty": "medium",
+                "question_types": [],
+                "questions": data,
+            }
+        elif isinstance(data, dict):
+            return data
+        else:
+            raise ValueError("Unexpected JSON structure: not dict or list.")
+
     def _parse_validate(self, raw: str) -> Dict:
         data, err = try_load_json(raw)
         if data is None:
             raise ValueError(f"Model did not return valid JSON. Parse error: {err}")
+
+        data = self._normalize_top_level(data)
         data.setdefault("questions", [])
         data.setdefault("question_types", [])
+
         data = self._ensure_ids(data)
-        # Pydantic validation
-        validated = GenerationResult.model_validate(data)  # type: ignore
+        validated = GenerationResult.model_validate(data)  # pydantic
         return validated.model_dump()
 
-    def _repair_once(self, bad: str) -> str:
+    def _repair_once(self, bad: str, topic: str, difficulty: str) -> str:
         snippet = bad[:800]
         fix_prompt = FIX_TEMPLATE.format(bad_snippet=snippet)
-        # Keep the JSON MIME hint so Gemini serializes correctly
-        return self.gemini.generate(fix_prompt, generation_config={"response_mime_type": "application/json"})
+        return self.gemini.generate(
+            fix_prompt,
+            generation_config={"response_mime_type": "application/json"},
+        )
 
     def generate_questions(
         self,
@@ -124,19 +130,24 @@ class QuestionGenerator:
     ) -> Dict:
         start = time.time()
         prompt = self._build_prompt(
-            topic, context, num_questions, generic_percentage,
-            difficulty_level, question_types, include_answers
+            topic,
+            context,
+            num_questions,
+            generic_percentage,
+            difficulty_level,
+            question_types,
+            include_answers,
         )
 
         # First attempt
         raw = self.gemini.generate(prompt)
 
-        # Try parse/validate; if fails, do one repair attempt
+        # Parse and repair logic
         try:
             payload = self._parse_validate(raw)
         except Exception:
-            repaired = self._repair_once(raw)
-            payload = self._parse_validate(repaired)  # if this fails, let it raise with clear message
+            repaired = self._repair_once(raw, topic, difficulty_level)
+            payload = self._parse_validate(repaired)
 
         # Fill computed fields
         payload["generation_time"] = round(time.time() - start, 2)
