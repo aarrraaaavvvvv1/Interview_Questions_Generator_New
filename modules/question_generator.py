@@ -167,46 +167,65 @@ class QuestionGenerator:
         return ""
 
     def _normalize_options(self, q: Dict[str, Any]) -> List[Dict[str, Any]]:
-        opts = q.get("options")
-        if not opts:
+        raw = q.get("options")
+        if not raw:
             return []
-
+    
+        # If some LLMs put choices under other keys, accept that too
+        if isinstance(raw, dict):
+            # e.g., {"A": "Linear Regression", "B": "KNN", ...}
+            raw = [str(v) for v in raw.values() if v is not None]
+    
         normalized: List[Dict[str, Any]] = []
-
-        if isinstance(opts, list):
-            for item in opts:
+    
+        # Always handle list; anything else gets stringified safely
+        if not isinstance(raw, list):
+            raw = [str(raw)]
+    
+        for item in raw:
+            try:
                 # Case 1: raw string option
                 if isinstance(item, str):
                     normalized.append({"option": self._strip_all_quotes_spaces(item), "is_correct": False})
                     continue
-
+    
                 # Case 2: dict with messy keys
                 if isinstance(item, dict):
+                    # Clean keys aggressively
                     norm_dict: Dict[str, Any] = {}
                     for k, v in item.items():
-                        ck = self._clean_key(k)
-                        # don't clobber a meaningful 'option' with empty text
+                        ck = self._clean_key(k)  # maps ' "option"' -> 'option', etc.
+                        # Don't overwrite a non-empty option text
                         if ck not in norm_dict or (ck == "option" and not norm_dict.get("option")):
                             norm_dict[ck] = v
-
+    
                     text = self._opt_text_from_dict(norm_dict) or self._strip_all_quotes_spaces(str(item))
-                    is_corr = self._coerce_bool(norm_dict.get("is_correct", False))
+                    is_corr = self._coerce_bool(
+                        norm_dict.get("is_correct")
+                        or norm_dict.get("correct")
+                        or norm_dict.get("answer")
+                        or False
+                    )
                     explanation = norm_dict.get("explanation") or None
-
+    
                     normalized.append({
                         "option": text or "Option",
                         "is_correct": bool(is_corr),
                         "explanation": explanation
                     })
                     continue
-
-                # Case 3: any other type → stringified
+    
+                # Case 3: any other type -> safe string
                 normalized.append({"option": self._strip_all_quotes_spaces(item), "is_correct": False})
-
+    
+            except Exception:
+                # Per-option hard fallback: never crash on bad shapes
+                normalized.append({"option": self._strip_all_quotes_spaces(str(item)), "is_correct": False})
+    
         # Enforce exactly one correct
         answer_text = self._strip_all_quotes_spaces(q.get("answer") or q.get("correct") or "")
         if normalized:
-            # If multiple marked correct, keep the first only
+            # If multiple marked correct, keep first only
             first_found = False
             for opt in normalized:
                 if self._coerce_bool(opt.get("is_correct", False)):
@@ -215,55 +234,68 @@ class QuestionGenerator:
                         first_found = True
                     else:
                         opt["is_correct"] = False
-
+    
             if not first_found:
-                # try to match by answer text
                 if answer_text:
                     for opt in normalized:
                         if self._strip_all_quotes_spaces(opt.get("option", "")).lower() == answer_text.lower():
                             opt["is_correct"] = True
                             first_found = True
                             break
-                if not first_found and normalized:
+                if not first_found:
                     normalized[0]["is_correct"] = True
-
-        # Guarantee schema keys exist (no KeyError later)
+    
+        # Final safety: ensure schema keys exist
         for opt in normalized:
             if "option" not in opt:
                 opt["option"] = "Option"
             if "is_correct" not in opt:
                 opt["is_correct"] = False
+    
         return normalized
+
 
     def _normalize_question(self, q: Dict[str, Any], fallback_difficulty: str) -> Dict[str, Any]:
         q = dict(q)
-
+    
         # Map alternate keys to text
         if not q.get("text") and q.get("question"):
             q["text"] = q.get("question")
-
+    
+        # If "options" is a dict (e.g., {"A": "...", "B": "..."}), turn into a list
+        if isinstance(q.get("options"), dict):
+            dict_opts = q["options"]
+            # keep insertion order where possible; flatten values
+            q["options"] = [str(v) for v in dict_opts.values() if v is not None]
+    
         # Defaults
         q["difficulty"] = (q.get("difficulty") or fallback_difficulty or "medium").lower()
+        # If options exist but type is missing, set to mcq
+        if not q.get("type") and q.get("options"):
+            q["type"] = "mcq"
         q["type"] = self._infer_type(q)
         if "is_generic" not in q:
             q["is_generic"] = False
-
+    
         # Normalize options for MCQ (even if type not set but options present)
+        # Wrap with ultra-defensive try/except so *no* bad shape can break parsing
         if q["type"] == "mcq" or q.get("options"):
-            q["options"] = self._normalize_options(q)
-            # if options ended up empty, unset to None
-            if not q["options"]:
-                q["options"] = None
+            try:
+                q["options"] = self._normalize_options(q)
+            except Exception:
+                # Absolute fallback: convert whatever came to a single safe option
+                q["options"] = [{"option": self._strip_all_quotes_spaces(str(q.get("answer") or "Option")), "is_correct": True}]
         else:
             q["options"] = q.get("options") or None
-
+    
         if not q.get("text"):
             q["text"] = q.get("prompt") or q.get("title") or "Question"
-
+    
         if not q.get("id"):
             q["id"] = uuid.uuid4().hex[:8]
-
+    
         return q
+
 
     def _normalize_top_level(self, data: Any, difficulty: str) -> Dict[str, Any]:
         """Accept dict or list; always return dict with required top-level keys present."""
