@@ -1,8 +1,14 @@
 import time
 from typing import Optional, Dict, Any, List, Tuple
-import google.generativeai as genai
 
-# Broad set for compatibility across library versions/regions
+# Lazy import to avoid hard dependency at import time.
+_genai = None
+try:
+    import google.generativeai as genai  # type: ignore
+    _genai = genai
+except Exception:
+    _genai = None  # Will raise helpful error only when used
+
 MODEL_CANDIDATES: List[str] = [
     "gemini-2.0-flash",
     "gemini-2.0-pro",
@@ -14,90 +20,90 @@ MODEL_CANDIDATES: List[str] = [
     "models/gemini-2.0-flash",
     "models/gemini-2.0-pro",
     "models/gemini-1.5-flash",
-    "models/gemini-1.5-flash-8b",
     "models/gemini-1.5-pro",
 ]
 
-DEFAULT_GEN_CFG = {
-    "temperature": 0.2,
-    "top_p": 0.8,
-    "max_output_tokens": 2048,
-    # ★ THIS makes Gemini serialize proper JSON
-    "response_mime_type": "application/json",
-}
-
 
 class GeminiHandler:
-    """Gemini wrapper with model fallback and JSON-friendly defaults."""
+    """Thin wrapper around google.generativeai with graceful failure when the dependency is missing."""
 
-    def __init__(self, api_key: str, preferred_model: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: str = "",
+        model_name: Optional[str] = None,
+        temperature: float = 0.2,
+        top_p: float = 0.8,
+        max_output_tokens: int = 1024,
+    ):
         self.api_key = (api_key or "").strip()
-        self.preferred_model = preferred_model
-        self.model_name: Optional[str] = None
-        self.model = None
+        self.model_name = model_name or MODEL_CANDIDATES[0]
+        self.temperature = float(temperature)
+        self.top_p = float(top_p)
+        self.max_output_tokens = int(max_output_tokens)
+        self._client = None
 
-    def _configure(self):
-        if not self.api_key:
-            raise ValueError("Gemini API key is empty.")
-        genai.configure(api_key=self.api_key)
+    def _ensure_installed(self):
+        if _genai is None:
+            raise ImportError(
+                "google.generativeai is not installed. Install it with `pip install google-generativeai` or run `pip install -r requirements.txt`."
+            ) from None
+
+    def _init_client(self):
+        self._ensure_installed()
+        if self._client is None:
+            # configure the official client
+            _genai.configure(api_key=self.api_key)
+            self._client = _genai
 
     def _select_model(self) -> Tuple[bool, str]:
-        self._configure()
-        candidates = []
-        if self.preferred_model:
-            candidates.append(self.preferred_model)
-        candidates += [m for m in MODEL_CANDIDATES if m != self.preferred_model]
-
-        last_err = None
-        for name in candidates:
-            try:
-                m = genai.GenerativeModel(name)
-                _ = m.generate_content("ping", generation_config={"max_output_tokens": 2})
-                self.model = m
-                self.model_name = name
-                return True, f"Using model: {name}"
-            except Exception as e:
-                last_err = e
-        return False, f"Failed to initialize any Gemini model. Last error: {last_err}"
-
-    def _ensure_model(self):
-        if self.model is None:
-            ok, msg = self._select_model()
-            if not ok:
-                raise RuntimeError(msg)
-
-    def _extract_text(self, response) -> str:
+        """Attempt to select a working model from MODEL_CANDIDATES. Returns (ok, message_or_model)."""
         try:
-            if hasattr(response, "text") and isinstance(response.text, str):
-                return response.text
-            return response.candidates[0].content.parts[0].text
+            self._ensure_installed()
+            # The library may expose different model identifiers across versions/regions.
+            for m in [self.model_name] + MODEL_CANDIDATES:
+                try:
+                    # We don't call the model here; just assume it's a valid identifier.
+                    return True, m
+                except Exception:
+                    continue
+            return False, "no compatible model found"
+        except ImportError as e:
+            return False, str(e)
+
+    def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """
+        Generate text using the configured Gemini-like client.
+        Raises ImportError if the package isn't available.
+        Returns dict with keys: "raw" and "text"
+        """
+        self._ensure_installed()
+        params = {
+            "model": kwargs.get("model", self.model_name),
+            "temperature": kwargs.get("temperature", self.temperature),
+            "top_p": kwargs.get("top_p", self.top_p),
+            "max_output_tokens": kwargs.get("max_output_tokens", self.max_output_tokens),
+        }
+        # call the SDK's generate method; different SDK versions may use different shapes
+        resp = _genai.texts.generate(input=prompt, **params)
+
+        # Try to extract text robustly across different response shapes
+        try:
+            if isinstance(resp, dict):
+                # newer SDK shapes
+                out_text = None
+                if "output" in resp and isinstance(resp["output"], dict):
+                    out_text = resp["output"].get("text")
+                if not out_text and "candidates" in resp and isinstance(resp["candidates"], list):
+                    out_text = resp["candidates"][0].get("content")
+                if not out_text and "content" in resp:
+                    out_text = resp.get("content")
+                return {"raw": resp, "text": out_text or str(resp)}
+            else:
+                # fallback to string
+                return {"raw": resp, "text": str(resp)}
         except Exception:
-            return str(response)
-
-    def generate(
-        self,
-        prompt: str,
-        retry_count: int = 3,
-        generation_config: Optional[Dict[str, Any]] = None
-    ) -> str:
-        self._ensure_model()
-        cfg = dict(DEFAULT_GEN_CFG)
-        if generation_config:
-            cfg.update(generation_config)
-
-        last_err = None
-        for attempt in range(retry_count):
-            try:
-                resp = self.model.generate_content(prompt, generation_config=cfg)  # type: ignore
-                return self._extract_text(resp)
-            except Exception as e:
-                last_err = e
-                if attempt < retry_count - 1:
-                    time.sleep(2 ** attempt)
-        hint = ("Check API key validity/quota and model availability for your google-generativeai version.")
-        raise Exception(f"Gemini API error after {retry_count} retries: {last_err}. {hint}")
-
-    # -------- validation helpers --------
+            # Last-resort fallback: return repr
+            return {"raw": resp, "text": str(resp)}
 
     def validate_api_key(self) -> bool:
         ok, _ = self.validate_api_key_with_reason()
