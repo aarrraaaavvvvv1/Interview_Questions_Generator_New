@@ -111,23 +111,60 @@ class QuestionGenerator:
             return "short" if len(str(q.get("answer", ""))) < 180 else "theory"
         return "theory"
 
+    # ---- NEW: aggressive key cleanup / mapping ----
+
+    _SMART_QUOTES = {
+        "\u2018": "", "\u2019": "",  # ‘ ’
+        "\u201C": "", "\u201D": "",  # “ ”
+        "\u00AB": "", "\u00BB": "",  # « »
+    }
+
+    def _strip_all_quotes_spaces(self, s: Any) -> str:
+        if s is None:
+            return ""
+        t = str(s).strip()
+        # strip ascii quotes
+        if t.startswith('"') and t.endswith('"') and len(t) >= 2:
+            t = t[1:-1].strip()
+        if t.startswith("'") and t.endswith("'") and len(t) >= 2:
+            t = t[1:-1].strip()
+        # strip smart quotes
+        for q, repl in self._SMART_QUOTES.items():
+            t = t.replace(q, repl)
+        return t.strip()
+
+    def _clean_key(self, k: Any) -> str:
+        t = self._strip_all_quotes_spaces(k).lower()
+        # collapse multiple spaces / punctuation around words
+        t = " ".join(t.split())
+        t = t.replace("_", " ")
+        # canonicalize by containment
+        if "option" in t:
+            return "option"
+        if "correct" in t or "answer" in t or "is correct" in t:
+            return "is_correct"
+        if "explanation" in t or "reason" in t or "why" in t:
+            return "explanation"
+        if t in {"label", "name", "value", "choice", "text"}:
+            return "option"
+        return t
+
     def _coerce_bool(self, v: Any) -> bool:
         if isinstance(v, bool):
             return v
         s = str(v).strip().lower()
         return s in {"1", "true", "yes", "y", "correct"}
 
-    def _clean_key(self, k: Any) -> str:
-        # normalize weird keys like ' "option"' or "option " → "option"
-        return str(k).strip().strip('"').strip("'").strip().lower()
-
     def _opt_text_from_dict(self, od: Dict[str, Any]) -> str:
-        # try common key variants
+        # After cleaning keys, try common names
         for key in ("option", "text", "label", "value", "name", "choice"):
             if key in od and od[key]:
-                return str(od[key])
-        # fallback to string of dict
-        return str(od)
+                return self._strip_all_quotes_spaces(od[key])
+        # fallback to any first non-empty value
+        for v in od.values():
+            if v:
+                return self._strip_all_quotes_spaces(v)
+        return ""
 
     def _normalize_options(self, q: Dict[str, Any]) -> List[Dict[str, Any]]:
         opts = q.get("options")
@@ -140,37 +177,34 @@ class QuestionGenerator:
             for item in opts:
                 # Case 1: raw string option
                 if isinstance(item, str):
-                    normalized.append({"option": item, "is_correct": False})
+                    normalized.append({"option": self._strip_all_quotes_spaces(item), "is_correct": False})
                     continue
 
-                # Case 2: dict with possibly messy keys
+                # Case 2: dict with messy keys
                 if isinstance(item, dict):
-                    # normalize keys
                     norm_dict: Dict[str, Any] = {}
                     for k, v in item.items():
-                        norm_dict[self._clean_key(k)] = v
+                        ck = self._clean_key(k)
+                        # don't clobber a meaningful 'option' with empty text
+                        if ck not in norm_dict or (ck == "option" and not norm_dict.get("option")):
+                            norm_dict[ck] = v
 
-                    text = self._opt_text_from_dict(norm_dict)
-                    is_corr = self._coerce_bool(
-                        norm_dict.get("is_correct")
-                        or norm_dict.get("correct")
-                        or norm_dict.get("answer")
-                        or False
-                    )
-                    explanation = norm_dict.get("explanation") or norm_dict.get("reason") or None
+                    text = self._opt_text_from_dict(norm_dict) or self._strip_all_quotes_spaces(str(item))
+                    is_corr = self._coerce_bool(norm_dict.get("is_correct", False))
+                    explanation = norm_dict.get("explanation") or None
 
                     normalized.append({
-                        "option": text,
+                        "option": text or "Option",
                         "is_correct": bool(is_corr),
                         "explanation": explanation
                     })
                     continue
 
                 # Case 3: any other type → stringified
-                normalized.append({"option": str(item), "is_correct": False})
+                normalized.append({"option": self._strip_all_quotes_spaces(item), "is_correct": False})
 
         # Enforce exactly one correct
-        answer_text = str(q.get("answer") or q.get("correct") or "").strip()
+        answer_text = self._strip_all_quotes_spaces(q.get("answer") or q.get("correct") or "")
         if normalized:
             # If multiple marked correct, keep the first only
             first_found = False
@@ -185,49 +219,47 @@ class QuestionGenerator:
             if not first_found:
                 # try to match by answer text
                 if answer_text:
-                    matched = False
                     for opt in normalized:
-                        if str(opt.get("option", "")).strip().lower() == answer_text.lower():
+                        if self._strip_all_quotes_spaces(opt.get("option", "")).lower() == answer_text.lower():
                             opt["is_correct"] = True
-                            matched = True
                             first_found = True
                             break
-                    if not matched and normalized:
-                        normalized[0]["is_correct"] = True
-                else:
-                    # mark first as correct if none specified
+                if not first_found and normalized:
                     normalized[0]["is_correct"] = True
 
+        # Guarantee schema keys exist (no KeyError later)
+        for opt in normalized:
+            if "option" not in opt:
+                opt["option"] = "Option"
+            if "is_correct" not in opt:
+                opt["is_correct"] = False
         return normalized
 
     def _normalize_question(self, q: Dict[str, Any], fallback_difficulty: str) -> Dict[str, Any]:
         q = dict(q)
 
-        # Map alternate keys
+        # Map alternate keys to text
         if not q.get("text") and q.get("question"):
             q["text"] = q.get("question")
 
-        # Difficulty default
+        # Defaults
         q["difficulty"] = (q.get("difficulty") or fallback_difficulty or "medium").lower()
-
-        # Type inference
         q["type"] = self._infer_type(q)
-
-        # is_generic default
         if "is_generic" not in q:
             q["is_generic"] = False
 
-        # Normalize options for MCQ
-        if q["type"] == "mcq":
+        # Normalize options for MCQ (even if type not set but options present)
+        if q["type"] == "mcq" or q.get("options"):
             q["options"] = self._normalize_options(q)
+            # if options ended up empty, unset to None
+            if not q["options"]:
+                q["options"] = None
         else:
             q["options"] = q.get("options") or None
 
-        # Ensure required text
         if not q.get("text"):
             q["text"] = q.get("prompt") or q.get("title") or "Question"
 
-        # Clean id
         if not q.get("id"):
             q["id"] = uuid.uuid4().hex[:8]
 
