@@ -14,16 +14,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
 # ---------- Helper UI Functions ----------
 
 def health_chip(label: str, ok: bool):
     color = "#22c55e" if ok else "#ef4444"
     st.markdown(
-        f"<span style='background:{color};padding:2px 8px;border-radius:999px;color:white;font-size:12px'>{label}</span>",
+        f"<span style='background:{color};padding:2px 8px;border-radius:999px;"
+        f"color:white;font-size:12px'>{label}</span>",
         unsafe_allow_html=True
     )
-
 
 def parse_urls(text: str):
     items = []
@@ -33,19 +32,20 @@ def parse_urls(text: str):
             items.append(line)
     return items
 
-
 # ---------- Sidebar Form ----------
 
 def sidebar_form():
     st.sidebar.header("Configuration")
 
-    # API Keys section (per user)
+    # API keys input
     with st.sidebar.expander("🔑 API Keys (Each user enters their own)"):
         gemini_key = st.text_input(
-            "Gemini API Key*", type="password", placeholder="Enter your Gemini API key"
+            "Gemini API Key*", type="password",
+            placeholder="Enter your Gemini API key"
         )
         firecrawl_key = st.text_input(
-            "Firecrawl API Key (optional)", type="password", placeholder="Enter your Firecrawl API key"
+            "Firecrawl API Key (optional)", type="password",
+            placeholder="Enter your Firecrawl API key"
         )
 
     topic = st.sidebar.text_input("Main Topic*", placeholder="e.g., Machine Learning")
@@ -61,13 +61,13 @@ def sidebar_form():
     )
     include_answers = st.sidebar.checkbox("Include Answers/Explanations", True)
 
-    st.sidebar.markdown("---")
-
     urls_text = st.sidebar.text_area(
         "Optional URLs (one per line)",
         placeholder="Leave empty to let the app find sources automatically",
         height=100
     )
+
+    st.sidebar.markdown("---")
 
     # API health check
     st.sidebar.markdown("**Service Status**")
@@ -81,10 +81,8 @@ def sidebar_form():
 
     health_chip("Gemini", gemini_ok)
     health_chip("Firecrawl", bool(firecrawl_key))
-
     st.sidebar.markdown("---")
 
-    # Generate button
     generate_btn = st.sidebar.button("🎯 Generate Questions", use_container_width=True)
 
     return dict(
@@ -102,7 +100,6 @@ def sidebar_form():
         trigger=generate_btn
     )
 
-
 # ---------- Render Questions ----------
 
 def render_questions(payload: dict):
@@ -116,7 +113,8 @@ def render_questions(payload: dict):
     for i, q in enumerate(payload.get("questions", []), start=1):
         with st.expander(f"Q{i}. {q.get('text','(no text)')}", expanded=False):
             st.write(
-                f"**Type:** {q.get('type','-')} | **Difficulty:** {q.get('difficulty','-')} | {'Generic' if q.get('is_generic') else 'Practical'}"
+                f"**Type:** {q.get('type','-')} | **Difficulty:** {q.get('difficulty','-')} | "
+                f"{'Generic' if q.get('is_generic') else 'Practical'}"
             )
             if q.get("type") == "mcq" and isinstance(q.get("options"), list):
                 for idx, opt in enumerate(q["options"], start=1):
@@ -131,8 +129,7 @@ def render_questions(payload: dict):
             if q.get("explanation") and q.get("type") != "mcq":
                 st.info(f"Explanation: {q.get('explanation')}")
 
-
-# ---------- Main App Logic ----------
+# ---------- Main Logic ----------
 
 def main():
     st.title("🎯 Interview Questions Generator")
@@ -158,10 +155,77 @@ def main():
                 qg = QuestionGenerator(gh)
                 scraper = WebScraper(cfg["firecrawl_key"])
 
-                # Step 1: Context from subtopics
+                # Step 1: Context
                 context = list(cfg["subtopics"])
 
                 # Step 2: Web scraping
                 scraped = []
-                if cfg["urls"]:
-                    scraped = scraper.extract_many(cfg["urls"])
+                auto_used = False
+                try:
+                    if cfg["urls"]:
+                        scraped = scraper.extract_many(cfg["urls"])
+                    else:
+                        # Auto-discover relevant sources
+                        query = cfg["topic"] + " " + " ".join(cfg["subtopics"])
+                        discovered = scraper.auto_discover_sources(query, max_sources=3)
+                        scraped = scraper.extract_many([u for (u, _) in discovered])
+                        auto_used = True
+                except Exception as e:
+                    st.warning(f"⚠️ Web scraping issue: {e}")
+
+                if scraped:
+                    st.info(f"Using {len(scraped)} web source(s){' (auto-discovered)' if auto_used else ''}.")
+                    for url, text in scraped:
+                        snippet = text[:300].replace("\n", " ")
+                        context.append(f"[Source] {url} :: {snippet}")
+
+                # Step 3: Generate questions
+                try:
+                    payload = qg.generate_questions(
+                        topic=cfg["topic"],
+                        context=context,
+                        num_questions=cfg["num_questions"],
+                        generic_percentage=cfg["generic_pct"],
+                        difficulty_level=cfg["difficulty"],
+                        question_types=cfg["qtypes"],
+                        include_answers=cfg["include_answers"]
+                    )
+                except Exception as e:
+                    st.error(f"❌ Gemini generation error: {e}")
+                    st.stop()
+
+                st.session_state.payload = payload
+                render_questions(payload)
+
+            except Exception as e:
+                st.error(f"❌ Unexpected error: {e}")
+                st.stop()
+
+    # ---------- PDF Export ----------
+    payload = st.session_state.get("payload")
+    if payload:
+        pdf = PDFGenerator()
+        fname = sanitize_filename(f"{payload.get('topic','Interview')}_QnA.pdf")
+        if st.button("⬇️ Download PDF", use_container_width=True):
+            try:
+                pdf_path = pdf.generate(payload, filename=fname)
+                with open(pdf_path, "rb") as f:
+                    st.download_button(
+                        "Save PDF File", f, file_name=fname, mime="application/pdf",
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"PDF generation failed: {e}")
+
+    st.markdown("""
+    ---
+    ### 💡 Tips
+    - Enter your own Gemini API key (each user uses their own quota)
+    - Leave URLs empty to let the app automatically find relevant web sources
+    - Adjust "Generic %" to balance between theory and practical questions
+    - Review questions before exporting as a PDF
+    """)
+
+
+if __name__ == "__main__":
+    main()
