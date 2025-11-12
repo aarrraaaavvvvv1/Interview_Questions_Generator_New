@@ -43,7 +43,7 @@ CONTEXT: {context_str}
 
 REQUIREMENTS:
 - Total questions: {num_questions}
-- Generic vs Practical ratio: {generic_percentage}% vs {100 - generic_percentage}%
+- Generic vs Practical ratio: {generic_percentage}% vs {practical_percentage}%
 - Difficulty: {difficulty}
 - Allowed types: {question_types}
 - Include answers: {include_answers}
@@ -68,12 +68,14 @@ class QuestionGenerator:
         include_answers: bool
     ) -> str:
         context_str = ", ".join(context) if context else "(none)"
+        practical_percentage = 100 - generic_percentage
         return PROMPT_TEMPLATE.format(
             system=SYSTEM_INSTRUCTIONS,
             topic=topic,
             context_str=context_str,
             num_questions=num_questions,
             generic_percentage=generic_percentage,
+            practical_percentage=practical_percentage,
             difficulty=difficulty_level,
             question_types=", ".join(question_types),
             include_answers=str(include_answers).lower()
@@ -136,7 +138,7 @@ class QuestionGenerator:
 
         try:
             payload = self._parse_and_validate(raw_text, difficulty_level)
-        except Exception as e:
+        except Exception:
             # Try repair prompt to force JSON return
             repair_prompt = f"Please convert this to valid JSON only:\n\n{raw_text[:1000]}"
             repaired = self.gemini.generate(repair_prompt)
