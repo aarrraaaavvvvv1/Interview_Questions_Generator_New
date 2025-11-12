@@ -1,5 +1,5 @@
 import time
-from typing import Optional, Dict, Any, List, Tuple, Callable
+from typing import Optional, Dict, Any, List, Tuple
 
 # Lazy import to avoid hard dependency at import time.
 _genai = None
@@ -25,7 +25,7 @@ MODEL_CANDIDATES: List[str] = [
 
 
 class GeminiHandler:
-    """Thin wrapper around google.generativeai with resilient generation method across SDK versions."""
+    """Gemini handler compatible with the latest google-generativeai SDK (GenerativeModel)."""
 
     def __init__(
         self,
@@ -38,172 +38,101 @@ class GeminiHandler:
         **kwargs,
     ):
         self.api_key = (api_key or "").strip()
-        # support alias preferred_model
-        if preferred_model:
-            self.model_name = preferred_model
-        else:
-            self.model_name = model_name or MODEL_CANDIDATES[0]
+        self.model_name = preferred_model or model_name or MODEL_CANDIDATES[0]
         self.temperature = float(temperature)
         self.top_p = float(top_p)
         self.max_output_tokens = int(max_output_tokens)
         self._client = None
+        self._model = None
 
     def _ensure_installed(self):
         if _genai is None:
             raise ImportError(
-                "google.generativeai is not installed. Install it with `pip install google-generativeai` or run `pip install -r requirements.txt`."
+                "google-generativeai is not installed. Install it with `pip install google-generativeai`."
             ) from None
 
     def _init_client(self):
-        """Configure the SDK client (if available)."""
+        """Configure the SDK and create a GenerativeModel if available."""
         self._ensure_installed()
-        if self._client is None:
-            # many SDKs provide a configure function
-            if hasattr(_genai, "configure"):
-                _genai.configure(api_key=self.api_key)
-                self._client = _genai
-            else:
-                # fallback: keep module as client
-                self._client = _genai
-
-    def _try_call_variants(self, prompt: str, params: Dict[str, Any]):
-        """
-        Try a sequence of likely SDK call shapes and return the first successful response.
-        If none succeed, raise RuntimeError with diagnostic info.
-        """
-        self._init_client()
-
-        attempts = []
-
-        # Variant 1: genai.texts.generate(input=..., model=...)
-        if hasattr(_genai, "texts") and hasattr(_genai.texts, "generate"):
-            attempts.append(lambda: _genai.texts.generate(input=prompt, **params))
-
-        # Variant 2: genai.generate(input=...) or genai.generate(prompt=...)
-        if hasattr(_genai, "generate"):
-            def try_gen():
-                try:
-                    return _genai.generate(input=prompt, **params)
-                except TypeError:
-                    return _genai.generate(prompt=prompt, **params)
-            attempts.append(try_gen)
-
-        # Variant 3: genai.generate_text / genai.generateText
-        if hasattr(_genai, "generate_text"):
-            attempts.append(lambda: _genai.generate_text(input=prompt, **params))
-            attempts.append(lambda: _genai.generate_text(prompt=prompt, **params))
-        if hasattr(_genai, "generateText"):
-            attempts.append(lambda: _genai.generateText(input=prompt, **params))
-
-        # Variant 4: some SDKs expose a client factory e.g., TextGenerationClient or similar
-        # Try common client attribute names and call .generate or .create
-        client_attr_names = ["TextGenerationClient", "TextClient", "TextsClient", "Client"]
-        for attr in client_attr_names:
-            if hasattr(_genai, attr):
-                client_cls = getattr(_genai, attr)
-                try:
-                    client = client_cls()
-                    if hasattr(client, "generate"):
-                        attempts.append(lambda c=client: c.generate(input=prompt, **params))
-                    if hasattr(client, "create"):
-                        attempts.append(lambda c=client: c.create(input=prompt, **params))
-                except Exception:
-                    # constructing client failed; skip
-                    pass
-
-        last_exc = None
-        for attempt in attempts:
-            try:
-                resp = attempt()
-                return resp
-            except Exception as e:
-                last_exc = e
-                # keep trying other variants
-                continue
-
-        # Nothing worked — build helpful diagnostic
-        avail = dir(_genai) if _genai is not None else []
-        raise RuntimeError(
-            "Unable to call a supported generation method on google.generativeai.\n"
-            "Tried multiple call shapes (texts.generate, generate, generate_text, client.generate, client.create) but all failed.\n"
-            f"Last error: {last_exc}\n"
-            f"Available attributes on module: {sorted([a for a in avail if not a.startswith('_')])[:50]}"
-        )
-
-    def _extract_text_from_response(self, resp) -> str:
-        """Try to get a user-facing string from various SDK response shapes."""
-        # if the SDK returned a simple dict-like object
+        if hasattr(_genai, "configure"):
+            _genai.configure(api_key=self.api_key)
+        # Try to instantiate the GenerativeModel (new SDK)
         try:
-            if isinstance(resp, dict):
-                # common shapes
-                if "output" in resp and isinstance(resp["output"], dict):
-                    t = resp["output"].get("text")
-                    if t:
-                        return t
-                if "candidates" in resp and isinstance(resp["candidates"], list) and resp["candidates"]:
-                    cand = resp["candidates"][0]
-                    if isinstance(cand, dict) and "content" in cand:
-                        return cand["content"]
-                if "content" in resp:
-                    return resp.get("content")
-                # fallback: try flattening possible lists
-                for key in ("outputs", "response", "responses"):
-                    if key in resp and isinstance(resp[key], list) and resp[key]:
-                        first = resp[key][0]
-                        if isinstance(first, dict) and "text" in first:
-                            return first["text"]
-                # last resort: stringify
-                return str(resp)
-            else:
-                # not a dict — try common attributes
-                if hasattr(resp, "text"):
-                    return getattr(resp, "text")
-                if hasattr(resp, "content"):
-                    return getattr(resp, "content")
-                # fallback to str()
-                return str(resp)
-        except Exception:
-            return str(resp)
+            if hasattr(_genai, "GenerativeModel"):
+                self._model = _genai.GenerativeModel(self.model_name)
+        except Exception as e:
+            self._model = None
+            print(f"Warning: could not create GenerativeModel: {e}")
 
     def _select_model(self) -> Tuple[bool, str]:
-        """Check for at least one viable model identifier; return boolean and message/model."""
+        """Select first available model name."""
         try:
             self._ensure_installed()
-            for m in [self.model_name] + MODEL_CANDIDATES:
-                try:
-                    # we can't truly test model validity without calling the API,
-                    # so just return the first candidate.
-                    return True, m
-                except Exception:
-                    continue
-            return False, "no compatible model found"
+            return True, self.model_name or MODEL_CANDIDATES[0]
         except ImportError as e:
             return False, str(e)
 
+    def _extract_text(self, resp) -> str:
+        """Safely extract text from various response formats."""
+        if resp is None:
+            return ""
+        try:
+            # Most common: response.text
+            if hasattr(resp, "text"):
+                return resp.text
+            # Sometimes responses have candidates -> content -> parts -> text
+            if hasattr(resp, "candidates"):
+                cand = resp.candidates[0]
+                if hasattr(cand, "content") and hasattr(cand.content, "parts"):
+                    parts = cand.content.parts
+                    if parts and hasattr(parts[0], "text"):
+                        return parts[0].text
+            # fallback
+            return str(resp)
+        except Exception:
+            return str(resp)
+
     def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """
-        Universal generate wrapper. Tries multiple SDK shapes and returns a dict:
-            { "raw": <raw-response>, "text": <extracted-text> }
-
-        If the SDK is not installed, raises ImportError.
-        If no supported call shape could be found, raises RuntimeError with diagnostics.
+        Generate text with Google Gemini API.
+        Uses the GenerativeModel API when available (latest SDK).
+        Returns {"raw": <response>, "text": <string>}.
         """
         self._init_client()
-        # construct common params mapping
-        params = {
-            "model": kwargs.get("model", self.model_name),
-            "temperature": kwargs.get("temperature", self.temperature),
-            "top_p": kwargs.get("top_p", self.top_p),
-            "max_output_tokens": kwargs.get("max_output_tokens", self.max_output_tokens),
-        }
 
-        # try known call shapes
-        resp = self._try_call_variants(prompt, params)
-        text = self._extract_text_from_response(resp)
-        return {"raw": resp, "text": text}
+        # Case 1: New-style GenerativeModel
+        if self._model and hasattr(self._model, "generate_content"):
+            try:
+                response = self._model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": kwargs.get("temperature", self.temperature),
+                        "top_p": kwargs.get("top_p", self.top_p),
+                        "max_output_tokens": kwargs.get("max_output_tokens", self.max_output_tokens),
+                    },
+                )
+                text = self._extract_text(response)
+                return {"raw": response, "text": text}
+            except Exception as e:
+                raise RuntimeError(f"Gemini API call failed: {e}")
+
+        # Case 2: Fallback to old API shapes if GenerativeModel not present
+        if hasattr(_genai, "generate_text"):
+            try:
+                resp = _genai.generate_text(prompt=prompt)
+                text = self._extract_text(resp)
+                return {"raw": resp, "text": text}
+            except Exception as e:
+                raise RuntimeError(f"Legacy generate_text() failed: {e}")
+
+        raise RuntimeError(
+            "No compatible Gemini generation method found. "
+            "Your google-generativeai SDK seems to require GenerativeModel.generate_content, "
+            "but initialization failed."
+        )
 
     def validate_api_key(self) -> bool:
-        ok, _ = self._select_model()
+        ok, _ = self.validate_api_key_with_reason()
         return ok
 
     def validate_api_key_with_reason(self) -> Tuple[bool, str]:
