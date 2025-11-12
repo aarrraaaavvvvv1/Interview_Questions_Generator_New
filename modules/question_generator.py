@@ -9,57 +9,69 @@ from app_utils.json_safety import try_load_json
 
 SYSTEM_INSTRUCTIONS = """You are an expert technical interviewer.
 
-Your ONLY task: output a single valid JSON object that contains exactly {num_questions} interview questions.
+Return **only** valid JSON (no markdown, no code fences, no commentary).
+The JSON must match this structure and include exactly {num_questions} questions:
 
-Do NOT include markdown, code fences, commentary, or explanations outside the JSON.
-If you include anything else, your output is invalid.
-
-### JSON SCHEMA EXAMPLE ###
 {
-  "topic": "Python OOP",
-  "context": ["Object-oriented programming principles"],
-  "difficulty": "medium",
-  "question_types": ["mcq", "coding", "short", "theory"],
-  "total_questions": 3,
-  "generic_count": 1,
-  "practical_count": 2,
-  "generation_time": 0.0,
+  "topic": "string",
+  "context": ["string"],
+  "difficulty": "easy|medium|hard",
+  "question_types": ["mcq","coding","short","theory"],
+  "total_questions": int,
+  "generic_count": int,
+  "practical_count": int,
+  "generation_time": float,
   "questions": [
     {
       "id": "uuid",
-      "type": "mcq",
-      "text": "What is encapsulation in Python?",
-      "difficulty": "medium",
-      "is_generic": true,
-      "options": [
-        {"option": "Hiding data", "is_correct": true, "explanation": "Encapsulation hides data."},
-        {"option": "Multiple inheritance", "is_correct": false, "explanation": ""}
-      ],
-      "answer": "Encapsulation hides data and behavior in a single unit.",
-      "explanation": "Encapsulation prevents direct access to object internals.",
-      "code": ""
+      "type": "mcq|coding|short|theory",
+      "text": "question text",
+      "difficulty": "easy|medium|hard",
+      "is_generic": true|false,
+      "options": [{"option": "text","is_correct":true|false,"explanation":"string"}],
+      "answer": "string",
+      "explanation": "string",
+      "code": "string"
     }
   ]
 }
+
+If you include anything besides valid JSON, your output is invalid.
 """
 
 
 class QuestionGenerator:
-    """Gemini-based question generator with strong JSON enforcement and fallback repair."""
+    """Gemini-based question generator with resilient JSON parsing and repair."""
 
     def __init__(self, gemini_handler: GeminiHandler):
         self.gemini = gemini_handler
 
     # -----------------------------------------------------------------------
-    # Helpers
+    # JSON Extraction & Repair Helpers
     # -----------------------------------------------------------------------
+    def _repair_json_text(self, text: str) -> str:
+        """Try to fix common malformed JSON patterns."""
+        if not text:
+            return ""
+        txt = text.strip()
+
+        # Drop any text before the first '{'
+        if "{" in txt:
+            txt = txt[txt.index("{"):]
+        # If it starts directly with a key (like `"topic":`), add braces
+        if txt.lstrip().startswith('"topic"'):
+            txt = "{" + txt
+        # Remove code fences/backticks
+        txt = re.sub(r"```(?:json)?", "", txt)
+        # Remove trailing commas before } or ]
+        txt = re.sub(r",(\s*[}\]])", r"\1", txt)
+        return txt.strip()
+
     def _extract_json(self, text: str) -> Optional[str]:
-        """Extract first balanced {...} JSON block from a string."""
+        """Extract first balanced JSON object, allowing minor noise."""
         if not text:
             return None
-        # Remove code fences and markdown
-        cleaned = re.sub(r"```(?:json)?", "", text)
-        # Find first balanced brace block
+        cleaned = self._repair_json_text(text)
         depth = 0
         start = None
         for i, ch in enumerate(cleaned):
@@ -71,28 +83,28 @@ class QuestionGenerator:
                 depth -= 1
                 if depth == 0 and start is not None:
                     return cleaned[start : i + 1]
-        # fallback: return whole thing
-        return cleaned.strip()
+        return cleaned if "{" in cleaned and "}" in cleaned else cleaned.strip()
 
     def _parse_json(self, text: str) -> Optional[Dict[str, Any]]:
-        """Try multiple ways to parse text into JSON."""
+        """Attempt to parse JSON after extraction & repair."""
         extracted = self._extract_json(text)
         if not extracted:
             return None
-
         parsed, _ = try_load_json(extracted)
         if parsed:
             return parsed
-
-        # Try a relaxed regex repair (remove trailing commas)
-        repaired = re.sub(r",(\s*[}\]])", r"\1", extracted)
         try:
-            return json.loads(repaired)
+            return json.loads(extracted)
         except Exception:
-            return None
+            # Last resort: try one more repair
+            fixed = self._repair_json_text(extracted)
+            try:
+                return json.loads(fixed)
+            except Exception:
+                return None
 
     # -----------------------------------------------------------------------
-    # Main generation logic
+    # Main generator
     # -----------------------------------------------------------------------
     def generate_questions(
         self,
@@ -108,50 +120,41 @@ class QuestionGenerator:
         context_str = ", ".join(context) if context else "(none)"
         practical_percentage = 100 - generic_percentage
 
-        # Build strong prompt
         prompt = (
             SYSTEM_INSTRUCTIONS.format(num_questions=num_questions)
             + f"""
 
 TOPIC: {topic}
 CONTEXT: {context_str}
-
 REQUIREMENTS:
 - Exactly {num_questions} questions.
 - Generic vs Practical ratio: {generic_percentage}% vs {practical_percentage}%.
 - Difficulty: {difficulty_level}.
 - Allowed types: {', '.join(question_types)}.
 - Include answers: {include_answers}.
-Output valid JSON only.
+Return JSON only.
 """
         )
 
-        # Use new SDK hint if available
-        extra_args = {}
-        if hasattr(self.gemini, "_model") and hasattr(self.gemini._model, "generate_content"):
-            extra_args["response_format"] = "json"
-
         # Generate
-        raw = self.gemini.generate(prompt, **extra_args)
+        raw = self.gemini.generate(prompt)
         raw_text = raw.get("text") if isinstance(raw, dict) else str(raw)
 
         parsed = self._parse_json(raw_text)
 
-        # Retry once with repair prompt if JSON missing
+        # Retry once with repair prompt if still invalid
         if not parsed:
-            repair_prompt = (
-                f"The following text failed JSON validation. "
-                f"Fix it and return valid JSON only:\n\n{raw_text[:1500]}"
-            )
-            repair = self.gemini.generate(repair_prompt)
-            raw_text = repair.get("text") if isinstance(repair, dict) else str(repair)
+            repair_prompt = f"Fix this into valid JSON only (no text):\n\n{raw_text[:1500]}"
+            repaired = self.gemini.generate(repair_prompt)
+            raw_text = repaired.get("text") if isinstance(repaired, dict) else str(repaired)
             parsed = self._parse_json(raw_text)
 
         if not parsed:
-            raise ValueError("Gemini returned no valid JSON block.")
+            raise ValueError("Gemini returned no valid JSON block even after repair.")
 
-        # Normalize fields
-        for q in parsed.get("questions", []):
+        # Normalize
+        questions = parsed.get("questions", [])
+        for q in questions:
             q.setdefault("id", str(uuid.uuid4()))
             q.setdefault("answer", "")
             q.setdefault("explanation", "")
@@ -162,11 +165,11 @@ Output valid JSON only.
 
         parsed["difficulty"] = difficulty_level
         parsed["generation_time"] = round(time.time() - start, 2)
-        parsed["total_questions"] = len(parsed.get("questions", []))
-        parsed["generic_count"] = sum(1 for q in parsed.get("questions", []) if q.get("is_generic"))
+        parsed["total_questions"] = len(questions)
+        parsed["generic_count"] = sum(1 for q in questions if q.get("is_generic"))
         parsed["practical_count"] = parsed["total_questions"] - parsed["generic_count"]
 
-        # Guarantee at least num_questions (add placeholders if short)
+        # Guarantee at least num_questions (fill placeholders)
         while len(parsed["questions"]) < num_questions:
             parsed["questions"].append(
                 {
