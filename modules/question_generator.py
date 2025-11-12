@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from typing import List, Dict, Any, Optional
@@ -5,51 +6,53 @@ from modules.gemini_handler import GeminiHandler
 from modules.schemas import GenerationResult
 from app_utils.json_safety import try_load_json
 
-SYSTEM_INSTRUCTIONS = """You are an expert technical interviewer. Generate high-quality interview questions.
+SYSTEM_INSTRUCTIONS = """You are an expert technical interviewer. 
+Generate ONLY a JSON object (no markdown, no explanations, no code fences).
+The JSON must have this structure:
 
-Return ONLY a single JSON object with keys:
-- topic (string)
-- context (array of strings)
-- difficulty ("easy"|"medium"|"hard")
-- question_types (array of "mcq"|"coding"|"short"|"theory")
-- total_questions (int)
-- generic_count (int)
-- practical_count (int)
-- generation_time (float seconds)
-- questions (array of question objects)
-
-Each question object must have:
-- id (string)
-- type ("mcq"|"coding"|"short"|"theory")
-- text (string)
-- difficulty ("easy"|"medium"|"hard")
-- is_generic (boolean)
-- options (for mcq: array of { "option": "...", "is_correct": true/false, "explanation": "..." })
-- answer (string, optional)
-- explanation (string, optional)
-- code (string, optional)
-
-Return strictly valid JSON — no markdown, code fences, or commentary.
+{
+  "topic": "string",
+  "context": ["optional context strings"],
+  "difficulty": "easy|medium|hard",
+  "question_types": ["mcq", "coding", "short", "theory"],
+  "total_questions": int,
+  "generic_count": int,
+  "practical_count": int,
+  "generation_time": float,
+  "questions": [
+    {
+      "id": "uuid",
+      "type": "mcq|coding|short|theory",
+      "text": "question text",
+      "difficulty": "easy|medium|hard",
+      "is_generic": true|false,
+      "options": [{"option": "text", "is_correct": true|false, "explanation": "string"}],
+      "answer": "string",
+      "explanation": "string",
+      "code": "string"
+    }
+  ]
+}
+Return JSON only.
 """
 
 PROMPT_TEMPLATE = """{system}
 
 TOPIC: {topic}
-
 CONTEXT: {context_str}
 
 REQUIREMENTS:
 - Total questions: {num_questions}
-- Generic vs Practical ratio: {generic_percentage}% generic / {practical_percentage}% practical
+- Generic vs Practical ratio: {generic_percentage}% vs {100 - generic_percentage}%
 - Difficulty: {difficulty}
 - Allowed types: {question_types}
 - Include answers: {include_answers}
 
-Make sure JSON is valid and escaped properly.
+Return only valid JSON (no markdown, no ``` fences, no commentary).
 """
 
 class QuestionGenerator:
-    """Generates interview questions using Gemini with JSON parsing, validation, and schema normalization."""
+    """Generates interview questions using Gemini with JSON parsing and repair."""
 
     def __init__(self, gemini_handler: GeminiHandler):
         self.gemini = gemini_handler
@@ -64,7 +67,6 @@ class QuestionGenerator:
         question_types: List[str],
         include_answers: bool
     ) -> str:
-        practical = 100 - generic_percentage
         context_str = ", ".join(context) if context else "(none)"
         return PROMPT_TEMPLATE.format(
             system=SYSTEM_INSTRUCTIONS,
@@ -72,28 +74,44 @@ class QuestionGenerator:
             context_str=context_str,
             num_questions=num_questions,
             generic_percentage=generic_percentage,
-            practical_percentage=practical,
             difficulty=difficulty_level,
             question_types=", ".join(question_types),
-            include_answers=str(include_answers).lower(),
+            include_answers=str(include_answers).lower()
         )
 
-    def _parse_validate(self, raw_json: str, expected_difficulty: str) -> Dict[str, Any]:
-        parsed, err = try_load_json(raw_json)
-        if parsed is None:
-            raise ValueError(f"Gemini did not return valid JSON. Error: {err}")
-        # Validate schema using Pydantic
-        validated = GenerationResult.parse_obj(parsed)
-        try:
-            return validated.model_dump()
-        except Exception:
-            return validated.dict()
+    def _extract_json_block(self, text: str) -> str:
+        """Extract JSON-like block from Gemini output if wrapped in text or code fences."""
+        if not text:
+            return ""
+        # Remove code fences and markdown formatting
+        cleaned = re.sub(r"```(?:json)?", "", text)
+        # Find first {...} block
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            return match.group(0)
+        return cleaned.strip()
 
-    def _repair_once(self, bad_output: str) -> str:
-        """Ask Gemini to repair invalid JSON once."""
-        fix_prompt = f"Fix this to valid JSON only:\n\n{bad_output[:800]}"
-        resp = self.gemini.generate(fix_prompt)
-        return resp.get("text") if isinstance(resp, dict) else str(resp)
+    def _parse_and_validate(self, text: str, difficulty: str) -> Dict[str, Any]:
+        """Try loading and validating JSON; attempt one repair if necessary."""
+        extracted = self._extract_json_block(text)
+        parsed, err = try_load_json(extracted)
+        if not parsed:
+            # Last-ditch: remove trailing commas and retry
+            repaired = re.sub(r",(\s*[}\]])", r"\1", extracted)
+            parsed, _ = try_load_json(repaired)
+        if not parsed:
+            raise ValueError("Gemini returned no valid JSON block.")
+
+        # Ensure IDs and schema compliance
+        for q in parsed.get("questions", []):
+            q.setdefault("id", str(uuid.uuid4()))
+
+        # Add missing metadata
+        parsed.setdefault("difficulty", difficulty)
+        parsed.setdefault("total_questions", len(parsed.get("questions", [])))
+        parsed.setdefault("generic_count", sum(1 for q in parsed.get("questions", []) if q.get("is_generic")))
+        parsed.setdefault("practical_count", parsed["total_questions"] - parsed["generic_count"])
+        return parsed
 
     def generate_questions(
         self,
@@ -108,26 +126,39 @@ class QuestionGenerator:
         """Main public entry — matches app.py’s call signature."""
         start = time.time()
         prompt = self._build_prompt(
-            topic,
-            context or [],
-            num_questions,
-            generic_percentage,
-            difficulty_level,
-            question_types,
-            include_answers,
+            topic, context or [], num_questions,
+            generic_percentage, difficulty_level,
+            question_types, include_answers
         )
 
         raw = self.gemini.generate(prompt)
         raw_text = raw.get("text") if isinstance(raw, dict) else str(raw)
 
         try:
-            payload = self._parse_validate(raw_text, difficulty_level)
-        except Exception:
-            repaired = self._repair_once(raw_text)
-            payload = self._parse_validate(repaired, difficulty_level)
+            payload = self._parse_and_validate(raw_text, difficulty_level)
+        except Exception as e:
+            # Try repair prompt to force JSON return
+            repair_prompt = f"Please convert this to valid JSON only:\n\n{raw_text[:1000]}"
+            repaired = self.gemini.generate(repair_prompt)
+            payload = self._parse_and_validate(
+                repaired.get("text") if isinstance(repaired, dict) else str(repaired),
+                difficulty_level
+            )
 
         payload["generation_time"] = round(time.time() - start, 2)
         payload["total_questions"] = len(payload.get("questions", []))
         payload["generic_count"] = sum(1 for q in payload.get("questions", []) if q.get("is_generic"))
         payload["practical_count"] = payload["total_questions"] - payload["generic_count"]
+
+        # If no questions, add a notice placeholder
+        if not payload["questions"]:
+            payload["questions"] = [{
+                "id": str(uuid.uuid4()),
+                "type": "short",
+                "text": "⚠️ Gemini returned no questions — try increasing total or changing topic.",
+                "difficulty": difficulty_level,
+                "is_generic": True,
+                "answer": "",
+                "explanation": ""
+            }]
         return payload
