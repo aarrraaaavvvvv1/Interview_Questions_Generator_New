@@ -4,7 +4,7 @@ from modules.question_generator import QuestionGenerator
 from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
 from app_utils.helpers import sanitize_filename, format_duration
-from config import MODEL_CHOICES # <-- CHANGED: Import from config
+from config import MODEL_CHOICES # Import from config
 
 st.set_page_config(
     page_title="Interview Questions Generator",
@@ -32,8 +32,6 @@ def parse_urls(text: str):
     return items
 
 # ---------- Sidebar ----------
-
-# <-- CHANGED: Removed the local MODEL_CHOICES list -->
 
 def sidebar_form():
     st.sidebar.header("Configuration")
@@ -73,7 +71,6 @@ def sidebar_form():
         except Exception as e:
             gemini_ok, gemini_msg = False, str(e)
 
-    # <-- CHANGED: The logic here is now more meaningful -->
     health_chip("Gemini", gemini_ok) 
     if not gemini_ok and gemini_key: # Only show error if key is provided but fails
         st.sidebar.caption(f"Gemini probe note: {gemini_msg}")
