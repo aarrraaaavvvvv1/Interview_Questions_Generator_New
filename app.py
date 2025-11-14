@@ -4,6 +4,7 @@ from modules.question_generator import QuestionGenerator
 from modules.pdf_generator import PDFGenerator
 from modules.web_scraper import WebScraper
 from app_utils.helpers import sanitize_filename, format_duration
+from config import MODEL_CHOICES # <-- CHANGED: Import from config
 
 st.set_page_config(
     page_title="Interview Questions Generator",
@@ -32,20 +33,7 @@ def parse_urls(text: str):
 
 # ---------- Sidebar ----------
 
-MODEL_CHOICES = [
-    "gemini-2.0-flash",
-    "gemini-2.0-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-pro",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-flash-8b",
-    "models/gemini-1.5-pro",
-]
+# <-- CHANGED: Removed the local MODEL_CHOICES list -->
 
 def sidebar_form():
     st.sidebar.header("Configuration")
@@ -53,6 +41,7 @@ def sidebar_form():
     with st.sidebar.expander("🔑 API Keys (each user enters their own)", expanded=True):
         gemini_key = st.text_input("Gemini API Key*", type="password", placeholder="Paste your Gemini key")
         firecrawl_key = st.text_input("Firecrawl API Key (optional)", type="password", placeholder="Optional")
+        # MODEL_CHOICES is now imported from config
         model_name = st.selectbox("Gemini model", MODEL_CHOICES, index=0)
         st.caption("If a model fails, generation will fall back through known variants automatically.")
 
@@ -78,14 +67,19 @@ def sidebar_form():
     gemini_msg = ""
     if gemini_key:
         try:
+            # This probe now performs a real validation
             gh_probe = GeminiHandler(gemini_key, preferred_model=model_name)
             gemini_ok, gemini_msg = gh_probe.validate_api_key_with_reason()
         except Exception as e:
             gemini_ok, gemini_msg = False, str(e)
 
-    health_chip("Gemini", bool(gemini_key))  # show ✅ if a key is provided (we won't block on probe)
-    if gemini_msg and not gemini_ok:
+    # <-- CHANGED: The logic here is now more meaningful -->
+    health_chip("Gemini", gemini_ok) 
+    if not gemini_ok and gemini_key: # Only show error if key is provided but fails
         st.sidebar.caption(f"Gemini probe note: {gemini_msg}")
+    elif not gemini_key:
+        st.sidebar.caption("Gemini probe note: Awaiting key...")
+
 
     health_chip("Firecrawl", bool(firecrawl_key))
     st.sidebar.markdown("---")
