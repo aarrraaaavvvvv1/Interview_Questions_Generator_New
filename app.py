@@ -143,9 +143,18 @@ def main():
             st.error("Please enter a topic to generate questions.")
             st.stop()
 
+        # --- THIS IS THE NEW, FORCED VALIDATION BLOCK ---
+        gh = GeminiHandler(cfg["gemini_key"], preferred_model=cfg["model_name"])
+        is_valid, reason = gh.validate_api_key_with_reason()
+        
+        if not is_valid:
+            st.error(f"❌ API Key Validation Failed: {reason}")
+            st.info("Please check your API key. If the key is correct, this error often means you need to enable the 'Generative Language API' or 'Vertex AI API' in your Google Cloud project, or that billing is not enabled.")
+            st.stop()
+        # --- END OF NEW BLOCK ---
+
         with st.spinner("Scraping web and generating questions..."):
-            # Initialize services with user's keys and preferred model
-            gh = GeminiHandler(cfg["gemini_key"], preferred_model=cfg["model_name"])
+            # gh is already initialized from the check above
             qg = QuestionGenerator(gh)
             scraper = WebScraper(cfg["firecrawl_key"])
 
