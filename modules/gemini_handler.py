@@ -1,6 +1,6 @@
 import time
 from typing import Optional, Dict, Any, List, Tuple
-from config import MODEL_CHOICES # <-- CHANGED: Import from config
+from config import MODEL_CHOICES # Import from config
 
 # Lazy import to avoid hard dependency at import time.
 _genai = None
@@ -10,7 +10,7 @@ try:
 except Exception:
     _genai = None  # Will raise helpful error only when used
 
-MODEL_CANDIDATES = MODEL_CHOICES # <-- CHANGED: Use list from config
+MODEL_CANDIDATES = MODEL_CHOICES # Use list from config
 
 
 class GeminiHandler:
@@ -124,7 +124,6 @@ class GeminiHandler:
         ok, _ = self.validate_api_key_with_reason()
         return ok
 
-    # --- THIS FUNCTION IS FIXED ---
     def validate_api_key_with_reason(self) -> Tuple[bool, str]:
         """
         Attempts a lightweight API call (list_models) to validate the API key.
@@ -148,9 +147,6 @@ class GeminiHandler:
             if "permission" in error_msg.lower():
                  return False, "API key lacks permission for this operation."
             return False, f"API key validation failed: {error_msg}"
-    # --- END OF FIX ---
 
     def get_health(self) -> str:
         return "ok" if self.validate_api_key() else "error"
-
-}
