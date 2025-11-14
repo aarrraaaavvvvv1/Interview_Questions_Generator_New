@@ -124,6 +124,7 @@ class GeminiHandler:
         ok, _ = self.validate_api_key_with_reason()
         return ok
 
+    # --- THIS IS THE IMPORTANT FUNCTION ---
     def validate_api_key_with_reason(self) -> Tuple[bool, str]:
         """
         Attempts a lightweight API call (list_models) to validate the API key.
@@ -147,6 +148,7 @@ class GeminiHandler:
             if "permission" in error_msg.lower():
                  return False, "API key lacks permission for this operation."
             return False, f"API key validation failed: {error_msg}"
+    # --- END OF FUNCTION ---
 
     def get_health(self) -> str:
-        return "ok" if self.validate_api_key() else "error"
+        return "ok" if self.validate_key() else "error"
