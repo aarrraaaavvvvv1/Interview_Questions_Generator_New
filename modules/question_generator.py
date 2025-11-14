@@ -47,61 +47,49 @@ class QuestionGenerator:
         self.gemini = gemini_handler
 
     # -----------------------------------------------------------------------
-    # JSON Extraction & Repair Helpers
+    # JSON Extraction & Repair Helpers (REWRITTEN FOR ROBUSTNESS)
     # -----------------------------------------------------------------------
-    def _repair_json_text(self, text: str) -> str:
-        """Try to fix common malformed JSON patterns."""
-        if not text:
-            return ""
-        txt = text.strip()
-
-        # Drop any text before the first '{'
-        if "{" in txt:
-            txt = txt[txt.index("{"):]
-        # If it starts directly with a key (like `"topic":`), add braces
-        if txt.lstrip().startswith('"topic"'):
-            txt = "{" + txt
-        # Remove code fences/backticks
-        txt = re.sub(r"```(?:json)?", "", txt)
-        # Remove trailing commas before } or ]
-        txt = re.sub(r",(\s*[}\]])", r"\1", txt)
-        return txt.strip()
-
-    def _extract_json(self, text: str) -> Optional[str]:
-        """Extract first balanced JSON object, allowing minor noise."""
+    def _extract_json_block(self, text: str) -> Optional[str]:
+        """
+        Finds the first and last curly braces in the text to extract the main
+        JSON block. More robust than balanced bracket counting for LLM output.
+        """
         if not text:
             return None
-        cleaned = self._repair_json_text(text)
-        depth = 0
-        start = None
-        for i, ch in enumerate(cleaned):
-            if ch == "{":
-                if depth == 0:
-                    start = i
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0 and start is not None:
-                    return cleaned[start : i + 1]
-        return cleaned if "{" in cleaned and "}" in cleaned else cleaned.strip()
+        
+        # Remove markdown fences
+        text = re.sub(r"```(?:json)?", "", text.strip())
+        
+        try:
+            # Find the first '{'
+            first_brace = text.index("{")
+            # Find the last '}'
+            last_brace = text.rindex("}")
+            
+            if last_brace > first_brace:
+                return text[first_brace : last_brace + 1]
+            else:
+                return None
+        except ValueError:
+            # Raised if '{' or '}' not found
+            return None
 
     def _parse_json(self, text: str) -> Optional[Dict[str, Any]]:
-        """Attempt to parse JSON after extraction & repair."""
-        extracted = self._extract_json(text)
+        """Attempt to parse JSON after extraction."""
+        extracted = self._extract_json_block(text)
         if not extracted:
             return None
+        
+        # Try loading with the safety util first
         parsed, _ = try_load_json(extracted)
         if parsed:
             return parsed
+            
+        # Try a final time with standard lib, just in case
         try:
             return json.loads(extracted)
         except Exception:
-            # Last resort: try one more repair
-            fixed = self._repair_json_text(extracted)
-            try:
-                return json.loads(fixed)
-            except Exception:
-                return None
+            return None
 
     # -----------------------------------------------------------------------
     # Main generator
