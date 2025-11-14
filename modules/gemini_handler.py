@@ -1,5 +1,6 @@
 import time
 from typing import Optional, Dict, Any, List, Tuple
+from config import MODEL_CHOICES # <-- CHANGED: Import from config
 
 # Lazy import to avoid hard dependency at import time.
 _genai = None
@@ -9,19 +10,7 @@ try:
 except Exception:
     _genai = None  # Will raise helpful error only when used
 
-MODEL_CANDIDATES: List[str] = [
-    "gemini-2.0-flash",
-    "gemini-2.0-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-pro",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-pro",
-]
+MODEL_CANDIDATES = MODEL_CHOICES # <-- CHANGED: Use list from config
 
 
 class GeminiHandler:
@@ -135,12 +124,33 @@ class GeminiHandler:
         ok, _ = self.validate_api_key_with_reason()
         return ok
 
+    # --- THIS FUNCTION IS FIXED ---
     def validate_api_key_with_reason(self) -> Tuple[bool, str]:
+        """
+        Attempts a lightweight API call (list_models) to validate the API key.
+        """
         try:
-            ok, msg = self._select_model()
-            return ok, msg
+            # _init_client() configures the SDK with the key
+            self._init_client() 
+            if not _genai:
+                return False, "google-generativeai is not installed."
+            
+            # This is the actual test. It will raise an exception if the key is bad.
+            _ = list(_genai.list_models()) 
+            
+            return True, "API key is valid."
+
         except Exception as e:
-            return False, str(e)
+            # Provide a more useful error message
+            error_msg = str(e)
+            if "API_KEY_INVALID" in error_msg:
+                return False, "The provided API key is invalid."
+            if "permission" in error_msg.lower():
+                 return False, "API key lacks permission for this operation."
+            return False, f"API key validation failed: {error_msg}"
+    # --- END OF FIX ---
 
     def get_health(self) -> str:
         return "ok" if self.validate_api_key() else "error"
+
+}
