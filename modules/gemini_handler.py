@@ -124,7 +124,7 @@ class GeminiHandler:
         ok, _ = self.validate_api_key_with_reason()
         return ok
 
-    # --- THIS IS THE CORRECT, FIXED FUNCTION ---
+    # --- THIS IS THE CORRECT, REAL VALIDATION FUNCTION ---
     def validate_api_key_with_reason(self) -> Tuple[bool, str]:
         """
         Attempts a lightweight API call (list_models) to validate the API key.
