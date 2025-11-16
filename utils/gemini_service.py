@@ -11,11 +11,49 @@ class GeminiService:
     def __init__(self, api_key: str):
         """Initialize Gemini API with API key"""
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(GEMINI_MODEL)
+        self.model_name = GEMINI_MODEL
+        self.model = None
+        self._initialize_model()
+    
+    def _initialize_model(self):
+        """Initialize the model with fallback options"""
+        models_to_try = [
+            self.model_name,
+            "gemini-pro",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+        ]
+        
+        for model_name in models_to_try:
+            try:
+                self.model = genai.GenerativeModel(model_name)
+                # Test if model works with a simple call
+                self.model.generate_content("test")
+                print(f"✓ Using model: {model_name}")
+                return
+            except Exception as e:
+                print(f"✗ Model {model_name} not available: {str(e)}")
+                continue
+        
+        # If no model works, try to list available models
+        try:
+            available_models = genai.list_models()
+            available_model_names = [m.name.split('/')[-1] for m in available_models if 'generateContent' in m.supported_generation_methods]
+            if available_model_names:
+                self.model = genai.GenerativeModel(available_model_names[0])
+                print(f"✓ Using available model: {available_model_names[0]}")
+                return
+        except:
+            pass
+        
+        raise Exception("No suitable Gemini model found. Please check your API key and available models.")
     
     def generate_questions(self, prompt: str) -> str:
         """Generate questions using Gemini API"""
         try:
+            if self.model is None:
+                raise Exception("Model not initialized. Please check your API key.")
+            
             response = self.model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
