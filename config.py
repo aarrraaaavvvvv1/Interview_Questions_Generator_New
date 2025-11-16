@@ -8,9 +8,9 @@ QUESTION_TYPES = {
 
 DIFFICULTY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
-# Gemini model configuration
-GEMINI_MODEL = "gemini-1.5-flash"
-GEMINI_MAX_TOKENS = 4000
+# Gemini model configuration - Using gemini-1.0-pro which is stable and available
+GEMINI_MODEL = "gemini-1.0-pro"
+GEMINI_MAX_TOKENS = 2000
 GEMINI_TEMPERATURE = 0.7
 
 # FireCrawl configuration
