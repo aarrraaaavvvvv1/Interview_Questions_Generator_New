@@ -30,12 +30,29 @@ class FireCrawlService:
             results = []
             search_results = self.client.search(search_query)
             
+            # Handle different response formats
+            if isinstance(search_results, dict) and 'results' in search_results:
+                search_results = search_results['results']
+            elif isinstance(search_results, dict) and 'data' in search_results:
+                search_results = search_results['data']
+            
+            # Ensure it's iterable
+            if not isinstance(search_results, list):
+                search_results = list(search_results) if hasattr(search_results, '__iter__') else []
+            
             for i, result in enumerate(search_results[:max_results]):
                 try:
-                    content = self.scrape_url(result.get('url', ''))
+                    # Handle different result formats
+                    url = result.get('url') if isinstance(result, dict) else getattr(result, 'url', '')
+                    title = result.get('title') if isinstance(result, dict) else getattr(result, 'title', 'Unknown')
+                    
+                    if not url:
+                        continue
+                    
+                    content = self.scrape_url(url)
                     results.append({
-                        'url': result.get('url'),
-                        'title': result.get('title'),
+                        'url': url,
+                        'title': title,
                         'content': content
                     })
                 except:
