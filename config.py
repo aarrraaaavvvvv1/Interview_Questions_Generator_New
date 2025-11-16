@@ -1,25 +1,35 @@
-import os
-MODEL_NAME = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")
-TEMPERATURE = float(os.getenv("GEN_TEMPERATURE", "0.2"))
-TOP_P = float(os.getenv("GEN_TOP_P", "0.8"))
-MAX_OUTPUT_TOKENS = int(os.getenv("GEN_MAX_OUTPUT_TOKENS", "2048"))
-SCRAPE_TIMEOUT = int(os.getenv("SCRAPE_TIMEOUT", "20"))
-SCRAPE_TOP_K = int(os.getenv("SCRAPE_TOP_K", "3"))
-SCRAPE_TRUNCATE_CHARS = int(os.getenv("SCRAPE_TRUNCATE_CHARS", "4000"))
-PDF_MARGIN_INCH = float(os.getenv("PDF_MARGIN_INCH", "0.7"))
+"""Configuration and constants for the Interview Questions Generator"""
 
-# ADDED: Centralized model list
-MODEL_CHOICES = [
-    "gemini-2.0-flash",
-    "gemini-2.0-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-pro",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-flash-8b",
-    "models/gemini-1.5-pro",
-]
+# Question generation settings
+QUESTION_TYPES = {
+    "generic": "General knowledge and conceptual questions",
+    "practical": "Practical, hands-on, and business-based questions"
+}
+
+DIFFICULTY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
+
+# Gemini model configuration
+GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MAX_TOKENS = 4000
+GEMINI_TEMPERATURE = 0.7
+
+# FireCrawl configuration
+FIRECRAWL_MAX_PAGES = 5
+FIRECRAWL_TIMEOUT = 60
+
+# Document generation settings
+DOCUMENT_TITLE_FORMAT = "Interview Questions - {topic}"
+DOCUMENT_FOOTER = "Generated using AI-Powered Interview Questions Generator | For Educational Purposes"
+
+# Validation settings
+MIN_QUESTIONS = 1
+MAX_QUESTIONS = 50
+MIN_PERCENTAGE = 0
+MAX_PERCENTAGE = 100
+
+# Professional profile information
+PROFESSIONAL_CONTEXT = {
+    "experience_level": "Senior (15+ years)",
+    "target_audience": "Working professionals from IIT/IIM collaborated courses",
+    "study_material": True
+}
