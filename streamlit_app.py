@@ -1,15 +1,24 @@
 import streamlit as st
 from datetime import datetime
+import sys
+import os
 
-# Import utility modules
-from utils.gemini_service import GeminiService
-from utils.firecrawl_service import FireCrawlService
-from utils.prompt_templates import get_question_generation_prompt, get_web_content_prompt
-from utils.document_generator import PDFGenerator, generate_markdown_document
-from config import (
-    QUESTION_TYPES, DIFFICULTY_LEVELS, MIN_QUESTIONS, MAX_QUESTIONS,
-    MIN_PERCENTAGE, MAX_PERCENTAGE, DOCUMENT_TITLE_FORMAT
-)
+# Add current directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from utils.gemini_service import GeminiService
+    from utils.firecrawl_service import FireCrawlService
+    from utils.prompt_templates import get_question_generation_prompt, get_web_content_prompt
+    from utils.document_generator import PDFGenerator, generate_markdown_document
+    from config import (
+        QUESTION_TYPES, DIFFICULTY_LEVELS, MIN_QUESTIONS, MAX_QUESTIONS,
+        MIN_PERCENTAGE, MAX_PERCENTAGE, DOCUMENT_TITLE_FORMAT
+    )
+except ImportError as e:
+    st.error(f"❌ Import Error: {str(e)}")
+    st.info("Make sure all files are in the correct location. Check TROUBLESHOOTING.md")
+    st.stop()
 
 # Configure page
 st.set_page_config(
@@ -123,6 +132,7 @@ with tab1:
         st.warning(f"⚠️ Percentages add up to {generic_percentage + practical_percentage}%. They should equal 100%.")
     
     # Web source options
+    web_search_query = ""
     if use_web_sources:
         st.markdown("---")
         web_search_query = st.text_input(
@@ -180,10 +190,11 @@ with tab1:
                                 try:
                                     firecrawl_service = FireCrawlService(firecrawl_api_key)
                                     search_results = firecrawl_service.search_and_scrape(web_search_query)
-                                    web_content = "\n\n".join([
-                                        f"Source: {r['title']}\nURL: {r['url']}\n{r['content']}"
-                                        for r in search_results[:3]
-                                    ])
+                                    if search_results:
+                                        web_content = "\n\n".join([
+                                            f"Source: {r['title']}\nURL: {r['url']}\n{r['content']}"
+                                            for r in search_results[:3]
+                                        ])
                                 except Exception as e:
                                     st.warning(f"⚠️ Could not fetch web content: {str(e)}")
                     
@@ -202,14 +213,18 @@ with tab1:
                     response = gemini_service.generate_questions(prompt)
                     qa_pairs = gemini_service.parse_qa_pairs(response)
                     
-                    # Store in session state
-                    st.session_state.qa_pairs = qa_pairs
-                    st.session_state.generated_topic = topic
-                    
-                    st.success(f"✅ Successfully generated {len(qa_pairs)} questions!")
+                    if not qa_pairs:
+                        st.error("❌ No questions were generated. Please try again.")
+                    else:
+                        # Store in session state
+                        st.session_state.qa_pairs = qa_pairs
+                        st.session_state.generated_topic = topic
+                        
+                        st.success(f"✅ Successfully generated {len(qa_pairs)} questions!")
                     
                 except Exception as e:
                     st.error(f"❌ Error generating questions: {str(e)}")
+                    st.info("💡 Tip: Check your API keys and internet connection")
 
 # Tab 2: View & Edit Questions
 with tab2:
