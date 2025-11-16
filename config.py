@@ -8,10 +8,9 @@ QUESTION_TYPES = {
 
 DIFFICULTY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
-# Gemini model configuration - Using gemini-pro which is the most stable
-# If gemini-pro fails, the app will try to list available models
-GEMINI_MODEL = "gemini-pro"
-GEMINI_MAX_TOKENS = 2000
+# Gemini model configuration - Using gemini-1.5-flash (low quota usage)
+GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MAX_TOKENS = 1500
 GEMINI_TEMPERATURE = 0.7
 
 # FireCrawl configuration
@@ -24,7 +23,7 @@ DOCUMENT_FOOTER = "Generated using AI-Powered Interview Questions Generator | Fo
 
 # Validation settings
 MIN_QUESTIONS = 1
-MAX_QUESTIONS = 50
+MAX_QUESTIONS = 20  # Reduced from 50 to save quota
 MIN_PERCENTAGE = 0
 MAX_PERCENTAGE = 100
 
