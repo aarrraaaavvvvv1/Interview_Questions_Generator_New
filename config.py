@@ -8,10 +8,9 @@ QUESTION_TYPES = {
 
 DIFFICULTY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
-# Gemini model configuration - Using gemini-1.5-flash (low quota usage)
-GEMINI_MODEL = "gemini-1.5-flash"
-GEMINI_MAX_TOKENS = 1500
-GEMINI_TEMPERATURE = 0.7
+# Gemini configuration - Model is auto-detected
+GEMINI_MAX_TOKENS = 1200
+GEMINI_TEMPERATURE = 0.6
 
 # FireCrawl configuration
 FIRECRAWL_MAX_PAGES = 5
@@ -23,7 +22,7 @@ DOCUMENT_FOOTER = "Generated using AI-Powered Interview Questions Generator | Fo
 
 # Validation settings
 MIN_QUESTIONS = 1
-MAX_QUESTIONS = 20  # Reduced from 50 to save quota
+MAX_QUESTIONS = 15  # Reduced to save quota
 MIN_PERCENTAGE = 0
 MAX_PERCENTAGE = 100
 
