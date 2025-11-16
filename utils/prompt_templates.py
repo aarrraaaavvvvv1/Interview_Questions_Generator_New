@@ -4,97 +4,74 @@ def get_question_generation_prompt(
     topic: str,
     curriculum_context: str,
     num_questions: int,
-    generic_percentage: float,
     practical_percentage: float,
-    difficulty: str
+    difficulty: str,
+    web_content: str = ""
 ) -> str:
     """Generate a structured prompt for question generation"""
     
-    num_generic = int((generic_percentage / 100) * num_questions)
-    num_practical = int((practical_percentage / 100) * num_questions)
+    num_practical = max(1, round((practical_percentage / 100) * num_questions))
+    num_generic = num_questions - num_practical
     
-    prompt = f"""You are an expert interviewer and curriculum designer preparing interview questions for professional study materials used in IIT/IIM collaborative courses.
+    web_context = ""
+    if web_content:
+        web_context = f"""
 
-TASK: Generate exactly {num_questions} interview questions based on the following specifications:
+ADDITIONAL CONTEXT FROM WEB RESEARCH:
+{web_content}
 
-TOPIC: {topic}
-CURRICULUM CONTEXT: {curriculum_context}
-DIFFICULTY LEVEL: {difficulty}
-TARGET AUDIENCE: Working professionals with 15+ years of experience
+Consider this web research to make questions more current and relevant."""
+    
+    prompt = f"""You are an expert curriculum designer and interviewer creating interview questions for professional study materials.
 
-QUESTION DISTRIBUTION:
-- Generic Questions (Conceptual): {num_generic} questions
+TASK: Generate EXACTLY {num_questions} interview question-answer pairs with the following distribution:
+- Generic/Conceptual Questions: {num_generic} questions
 - Practical/Business-Based Questions: {num_practical} questions
 
-REQUIREMENTS:
-1. Generic questions should test conceptual understanding and theoretical knowledge
-2. Practical questions should focus on real-world scenarios, business applications, and hands-on problem-solving
-3. Questions should be relevant to professional working environments
-4. Include both definition-style and scenario-based questions
-5. Ensure appropriate difficulty level ({difficulty})
-6. Questions should be clear, concise, and unambiguous
+TOPIC: {topic}
+
+CURRICULUM CONTENT:
+{curriculum_context}
+{web_context}
+
+DIFFICULTY LEVEL: {difficulty}
+
+TARGET AUDIENCE: Working professionals with 15+ years of experience
+
+QUESTION REQUIREMENTS:
+1. Generic questions test conceptual understanding, definitions, and theoretical knowledge
+2. Practical questions focus on real-world scenarios, decision-making, and business applications
+3. All questions must be directly relevant to the provided curriculum content
+4. Questions should reflect how these concepts apply in professional environments
+5. Mix of definition-style, scenario-based, and application questions
+6. Clear, concise, unambiguous phrasing
 
 RESPONSE FORMAT:
-Generate exactly {num_questions} question-answer pairs in the following format:
+Generate EXACTLY {num_questions} questions in this precise format:
 
 **QUESTION 1:**
-[Question text for generic/practical question type]
+[Question text - mark type at end: (GENERIC) or (PRACTICAL)]
 
 **ANSWER 1:**
-[Comprehensive answer with key points, examples, and business context where applicable]
+[Comprehensive answer with key points, examples, and business context - 150-250 words]
 
 **QUESTION 2:**
-[Next question]
+[Next question - mark type: (GENERIC) or (PRACTICAL)]
 
 **ANSWER 2:**
 [Corresponding answer]
 
-[Continue this pattern for all {num_questions} questions]
+[Continue exactly {num_questions} times]
 
-IMPORTANT:
-- Start each question with **QUESTION N:** 
+CRITICAL REQUIREMENTS:
+- Generate EXACTLY {num_generic} generic questions and {num_practical} practical questions
+- Each question MUST be marked with (GENERIC) or (PRACTICAL) at the end
+- Each answer should be 150-250 words with practical examples
+- Start each question with **QUESTION N:**
 - Start each answer with **ANSWER N:**
-- Ensure answers are comprehensive (200-300 words) with practical examples where relevant
-- Mark whether each question is [GENERIC] or [PRACTICAL] at the beginning of the question line
-- Questions should progressively increase in depth if difficulty is set to intermediate/advanced levels
+- No markdown symbols except ** for bold
+- Questions should progress from foundational to applied
 
-Begin generating the questions:"""
-    
-    return prompt
-
-def get_web_content_prompt(
-    web_content: str,
-    topic: str,
-    curriculum_context: str,
-    num_questions: int
-) -> str:
-    """Generate a prompt for question generation from web content"""
-    
-    prompt = f"""You are an expert interviewer analyzing current web content to create relevant interview questions for professional study materials.
-
-TOPIC: {topic}
-CURRICULUM CONTEXT: {curriculum_context}
-NUMBER OF QUESTIONS: {num_questions}
-
-WEB CONTENT TO ANALYZE:
-{web_content}
-
-TASK:
-Based on the above web content, generate {num_questions} relevant interview questions and answers. Focus on:
-1. Current trends and updates in the {topic} field
-2. Practical applications mentioned in the content
-3. Key concepts and their real-world implications
-4. Critical thinking questions about the content
-
-RESPONSE FORMAT:
-**QUESTION 1:**
-[Question based on web content]
-
-**ANSWER 1:**
-[Answer with references to the content and practical implications]
-
-[Continue for all {num_questions} questions]
-
-Ensure all questions are grounded in the provided web content and relevant to working professionals."""
+Begin:"""
     
     return prompt
