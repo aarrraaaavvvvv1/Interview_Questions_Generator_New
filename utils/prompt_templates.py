@@ -13,20 +13,22 @@ def get_question_generation_prompt(
     num_practical = max(1, round((practical_percentage / 100) * num_questions))
     num_generic = num_questions - num_practical
     
+    # Ensure we have the exact count
+    assert num_practical + num_generic == num_questions, "Math error in distribution"
+    
     web_context = ""
     if web_content:
         web_context = f"""
 
-ADDITIONAL CONTEXT FROM WEB RESEARCH:
-{web_content}
-
-Consider this web research to make questions more current and relevant."""
+RECENT WEB RESEARCH:
+{web_content}"""
     
-    prompt = f"""You are an expert curriculum designer and interviewer creating interview questions for professional study materials.
+    prompt = f"""You are an expert curriculum designer creating interview questions for professional study materials.
 
-TASK: Generate EXACTLY {num_questions} interview question-answer pairs with the following distribution:
-- Generic/Conceptual Questions: {num_generic} questions
-- Practical/Business-Based Questions: {num_practical} questions
+CRITICAL REQUIREMENT: Generate EXACTLY {num_questions} questions with EXACT distribution:
+- {num_generic} GENERIC/CONCEPTUAL questions
+- {num_practical} PRACTICAL/BUSINESS-BASED questions
+- TOTAL: {num_questions} questions
 
 TOPIC: {topic}
 
@@ -34,44 +36,48 @@ CURRICULUM CONTENT:
 {curriculum_context}
 {web_context}
 
-DIFFICULTY LEVEL: {difficulty}
+DIFFICULTY: {difficulty}
 
-TARGET AUDIENCE: Working professionals with 15+ years of experience
-
-QUESTION REQUIREMENTS:
-1. Generic questions test conceptual understanding, definitions, and theoretical knowledge
-2. Practical questions focus on real-world scenarios, decision-making, and business applications
-3. All questions must be directly relevant to the provided curriculum content
-4. Questions should reflect how these concepts apply in professional environments
-5. Mix of definition-style, scenario-based, and application questions
-6. Clear, concise, unambiguous phrasing
+INSTRUCTIONS:
+1. Generate EXACTLY {num_questions} question-answer pairs
+2. Mark each question type CLEARLY: (GENERIC) or (PRACTICAL)
+3. First {num_generic} questions should be marked (GENERIC)
+4. Last {num_practical} questions should be marked (PRACTICAL)
+5. Each answer: 100-200 words, practical examples
 
 RESPONSE FORMAT:
-Generate EXACTLY {num_questions} questions in this precise format:
+Use this EXACT format for ALL {num_questions} questions:
 
 **QUESTION 1:**
-[Question text - mark type at end: (GENERIC) or (PRACTICAL)]
+[Question text] (GENERIC)
 
 **ANSWER 1:**
-[Comprehensive answer with key points, examples, and business context - 150-250 words]
+[Comprehensive answer 100-200 words]
 
 **QUESTION 2:**
-[Next question - mark type: (GENERIC) or (PRACTICAL)]
+[Question text] (GENERIC)
 
 **ANSWER 2:**
-[Corresponding answer]
+[Comprehensive answer 100-200 words]
 
-[Continue exactly {num_questions} times]
+[Continue pattern...]
 
-CRITICAL REQUIREMENTS:
-- Generate EXACTLY {num_generic} generic questions and {num_practical} practical questions
-- Each question MUST be marked with (GENERIC) or (PRACTICAL) at the end
-- Each answer should be 150-250 words with practical examples
-- Start each question with **QUESTION N:**
-- Start each answer with **ANSWER N:**
-- No markdown symbols except ** for bold
-- Questions should progress from foundational to applied
+**QUESTION {num_generic + 1}:**
+[Question text] (PRACTICAL)
 
-Begin:"""
+**ANSWER {num_generic + 1}:**
+[Comprehensive answer 100-200 words]
+
+[Continue with PRACTICAL until question {num_questions}]
+
+CRITICAL RULES:
+- Generate EXACTLY {num_questions} questions (no more, no less)
+- EVERY question must have (GENERIC) or (PRACTICAL) marker
+- First {num_generic} are GENERIC, rest are PRACTICAL
+- No other text before or after questions
+- Start immediately with **QUESTION 1:**
+- End after **ANSWER {num_questions}:**
+
+Now generate all {num_questions} questions:"""
     
     return prompt
