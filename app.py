@@ -35,8 +35,10 @@ if 'pdf_bytes' not in st.session_state:
     st.session_state.pdf_bytes = None
 if 'word_bytes' not in st.session_state:
     st.session_state.word_bytes = None
-if 'generation_params' not in st.session_state:
-    st.session_state.generation_params = None
+if 'last_params' not in st.session_state:
+    st.session_state.last_params = None
+if 'last_curriculum' not in st.session_state:
+    st.session_state.last_curriculum = None
 
 # Sidebar - API Configuration
 st.sidebar.title("🔑 API Keys")
@@ -112,6 +114,23 @@ with tab1:
     
     st.markdown("---")
     
+    # Check if parameters changed
+    current_params = {
+        'topic': topic,
+        'num_questions': num_questions,
+        'practical_percentage': practical_percentage,
+        'difficulty': difficulty,
+        'curriculum': curriculum_context
+    }
+    
+    # Auto-clear cache if any parameter changed
+    if st.session_state.last_params is not None:
+        if current_params != st.session_state.last_params:
+            st.session_state.qa_pairs = None
+            st.session_state.generated_topic = None
+            st.session_state.pdf_bytes = None
+            st.session_state.word_bytes = None
+    
     col1, col2 = st.columns([1, 5])
     
     with col1:
@@ -132,7 +151,8 @@ with tab1:
         st.session_state.generated_topic = None
         st.session_state.pdf_bytes = None
         st.session_state.word_bytes = None
-        st.session_state.generation_params = None
+        st.session_state.last_params = None
+        st.session_state.last_curriculum = None
         st.rerun()
     
     # Generation logic
@@ -152,13 +172,7 @@ with tab1:
                     st.session_state.word_bytes = None
                     
                     # Save current parameters
-                    current_params = {
-                        'topic': topic,
-                        'num_questions': num_questions,
-                        'practical_percentage': practical_percentage,
-                        'difficulty': difficulty
-                    }
-                    st.session_state.generation_params = current_params
+                    st.session_state.last_params = current_params
                     
                     # Initialize services
                     gemini_service = GeminiService(gemini_api_key)
