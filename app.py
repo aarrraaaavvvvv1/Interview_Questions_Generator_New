@@ -9,7 +9,7 @@ try:
     from utils.gemini_service import GeminiService
     from utils.firecrawl_service import FireCrawlService
     from utils.prompt_templates import get_question_generation_prompt
-    from utils.document_generator import PDFGenerator, WordDocumentGenerator, generate_markdown_document
+    from utils.document_generator import PDFGenerator, WordDocumentGenerator
     from config import (
         DIFFICULTY_LEVELS, MIN_QUESTIONS, MAX_QUESTIONS,
         MIN_PRACTICAL_PERCENTAGE, MAX_PRACTICAL_PERCENTAGE, DOCUMENT_TITLE_FORMAT
@@ -31,6 +31,12 @@ if 'qa_pairs' not in st.session_state:
     st.session_state.qa_pairs = None
 if 'generated_topic' not in st.session_state:
     st.session_state.generated_topic = None
+if 'pdf_bytes' not in st.session_state:
+    st.session_state.pdf_bytes = None
+if 'word_bytes' not in st.session_state:
+    st.session_state.word_bytes = None
+if 'generation_params' not in st.session_state:
+    st.session_state.generation_params = None
 
 # Sidebar - API Configuration
 st.sidebar.title("🔑 API Keys")
@@ -124,6 +130,9 @@ with tab1:
     if clear_btn:
         st.session_state.qa_pairs = None
         st.session_state.generated_topic = None
+        st.session_state.pdf_bytes = None
+        st.session_state.word_bytes = None
+        st.session_state.generation_params = None
         st.rerun()
     
     # Generation logic
@@ -138,6 +147,19 @@ with tab1:
         else:
             with st.spinner("⏳ Generating questions..."):
                 try:
+                    # Clear old generated documents
+                    st.session_state.pdf_bytes = None
+                    st.session_state.word_bytes = None
+                    
+                    # Save current parameters
+                    current_params = {
+                        'topic': topic,
+                        'num_questions': num_questions,
+                        'practical_percentage': practical_percentage,
+                        'difficulty': difficulty
+                    }
+                    st.session_state.generation_params = current_params
+                    
                     # Initialize services
                     gemini_service = GeminiService(gemini_api_key)
                     firecrawl_service = FireCrawlService(firecrawl_api_key)
@@ -168,12 +190,19 @@ with tab1:
                     )
                     
                     # Generate questions
-                    response = gemini_service.generate_questions(prompt)
-                    qa_pairs = gemini_service.parse_qa_pairs(response)
+                    with st.spinner("🤖 Generating questions with AI..."):
+                        response = gemini_service.generate_questions(prompt)
+                        qa_pairs = gemini_service.parse_qa_pairs(response)
                     
                     if not qa_pairs:
                         st.error("❌ No questions generated. Try again.")
-                    else:
+                    elif len(qa_pairs) != num_questions:
+                        st.warning(f"⚠️ Generated {len(qa_pairs)} questions instead of {num_questions}. Retrying...")
+                        # Retry once
+                        response = gemini_service.generate_questions(prompt)
+                        qa_pairs = gemini_service.parse_qa_pairs(response)
+                    
+                    if qa_pairs:
                         # Verify distribution
                         practical_count = sum(1 for q in qa_pairs if q.get('type') == 'practical')
                         generic_count = len(qa_pairs) - practical_count
@@ -182,6 +211,10 @@ with tab1:
                         st.session_state.generated_topic = topic
                         
                         st.success(f"✅ Generated {len(qa_pairs)} questions")
+                        
+                        if len(qa_pairs) != num_questions:
+                            st.warning(f"⚠️ Got {len(qa_pairs)} questions (requested {num_questions})")
+                        
                         st.info(f"Distribution: {generic_count} generic, {practical_count} practical")
                     
                 except Exception as e:
@@ -228,6 +261,9 @@ with tab2:
                 if edited_q != qa['question'] or edited_a != qa['answer']:
                     st.session_state.qa_pairs[i-1]['question'] = edited_q
                     st.session_state.qa_pairs[i-1]['answer'] = edited_a
+                    # Clear cached documents when editing
+                    st.session_state.pdf_bytes = None
+                    st.session_state.word_bytes = None
                     st.success("✅ Updated")
 
 # Tab 3: Export
@@ -249,51 +285,63 @@ with tab3:
             st.markdown("### PDF Export")
             pdf_title = st.text_input(
                 "Document Title",
-                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic)
+                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic),
+                key="pdf_title_input"
             )
             
-            if st.button("📥 Download as PDF", use_container_width=True):
+            # Generate PDF button
+            if st.button("🔄 Generate PDF", use_container_width=True, key="gen_pdf_btn"):
                 try:
                     with st.spinner("Generating PDF..."):
                         pdf_gen = PDFGenerator(
                             pdf_title,
                             st.session_state.generated_topic
                         )
-                        pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
-                        
-                        st.download_button(
-                            label="📥 Download PDF",
-                            data=pdf_bytes,
-                            file_name=f"{pdf_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                            mime="application/pdf"
-                        )
-                        st.success("✅ PDF generated successfully!")
+                        st.session_state.pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
+                        st.success("✅ PDF generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
+            
+            # Download PDF button (only shows if PDF is generated)
+            if st.session_state.pdf_bytes:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=st.session_state.pdf_bytes,
+                    file_name=f"{pdf_title}_{timestamp}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_btn"
+                )
         
         elif export_format == "Word Document":
             st.markdown("### Word Document Export")
             doc_title = st.text_input(
                 "Document Title",
-                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic)
+                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic),
+                key="word_title_input"
             )
             
-            if st.button("📥 Download as Word", use_container_width=True):
+            # Generate Word button
+            if st.button("🔄 Generate Word Document", use_container_width=True, key="gen_word_btn"):
                 try:
                     with st.spinner("Generating Word document..."):
                         word_gen = WordDocumentGenerator()
-                        word_bytes = word_gen.generate(
+                        st.session_state.word_bytes = word_gen.generate(
                             st.session_state.qa_pairs,
                             doc_title,
                             st.session_state.generated_topic
                         )
-                        
-                        st.download_button(
-                            label="📥 Download Word Document",
-                            data=word_bytes,
-                            file_name=f"{doc_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
-                        st.success("✅ Word document generated successfully!")
+                        st.success("✅ Word document generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
+            
+            # Download Word button (only shows if Word is generated)
+            if st.session_state.word_bytes:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                st.download_button(
+                    label="📥 Download Word Document",
+                    data=st.session_state.word_bytes,
+                    file_name=f"{doc_title}_{timestamp}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="download_word_btn"
+                )
