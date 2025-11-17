@@ -9,7 +9,7 @@ try:
     from utils.gemini_service import GeminiService
     from utils.firecrawl_service import FireCrawlService
     from utils.prompt_templates import get_question_generation_prompt
-    from utils.document_generator import PDFGenerator, generate_markdown_document
+    from utils.document_generator import PDFGenerator, WordDocumentGenerator, generate_markdown_document
     from config import (
         DIFFICULTY_LEVELS, MIN_QUESTIONS, MAX_QUESTIONS,
         MIN_PRACTICAL_PERCENTAGE, MAX_PRACTICAL_PERCENTAGE, DOCUMENT_TITLE_FORMAT
@@ -241,11 +241,12 @@ with tab3:
         
         export_format = st.selectbox(
             "Export Format",
-            ["PDF", "Markdown", "Text"],
+            ["PDF", "Word Document"],
             help="Choose export format"
         )
         
         if export_format == "PDF":
+            st.markdown("### PDF Export")
             pdf_title = st.text_input(
                 "Document Title",
                 value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic)
@@ -253,47 +254,46 @@ with tab3:
             
             if st.button("📥 Download as PDF", use_container_width=True):
                 try:
-                    pdf_gen = PDFGenerator(
-                        pdf_title,
-                        st.session_state.generated_topic,
-                        "Professional Interview Questions"
-                    )
-                    pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
-                    
-                    st.download_button(
-                        label="📥 Download PDF",
-                        data=pdf_bytes,
-                        file_name=f"{pdf_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                        mime="application/pdf"
-                    )
+                    with st.spinner("Generating PDF..."):
+                        pdf_gen = PDFGenerator(
+                            pdf_title,
+                            st.session_state.generated_topic
+                        )
+                        pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
+                        
+                        st.download_button(
+                            label="📥 Download PDF",
+                            data=pdf_bytes,
+                            file_name=f"{pdf_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf"
+                        )
+                        st.success("✅ PDF generated successfully!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
         
-        elif export_format == "Markdown":
-            md_content = generate_markdown_document(
-                st.session_state.qa_pairs,
-                f"Interview Questions - {st.session_state.generated_topic}",
-                st.session_state.generated_topic
+        elif export_format == "Word Document":
+            st.markdown("### Word Document Export")
+            doc_title = st.text_input(
+                "Document Title",
+                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic)
             )
             
-            st.download_button(
-                label="📥 Download Markdown",
-                data=md_content,
-                file_name=f"questions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                mime="text/markdown"
-            )
-            
-            st.markdown("### Preview")
-            st.markdown(md_content)
-        
-        else:  # Text
-            text_content = ""
-            for i, qa in enumerate(st.session_state.qa_pairs, 1):
-                text_content += f"QUESTION {i}:\n{qa['question']}\n\nANSWER {i}:\n{qa['answer']}\n\n{'='*80}\n\n"
-            
-            st.download_button(
-                label="📥 Download Text",
-                data=text_content,
-                file_name=f"questions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain"
-            )
+            if st.button("📥 Download as Word", use_container_width=True):
+                try:
+                    with st.spinner("Generating Word document..."):
+                        word_gen = WordDocumentGenerator()
+                        word_bytes = word_gen.generate(
+                            st.session_state.qa_pairs,
+                            doc_title,
+                            st.session_state.generated_topic
+                        )
+                        
+                        st.download_button(
+                            label="📥 Download Word Document",
+                            data=word_bytes,
+                            file_name=f"{doc_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                        st.success("✅ Word document generated successfully!")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
