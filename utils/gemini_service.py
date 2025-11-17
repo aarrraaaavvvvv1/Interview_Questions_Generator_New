@@ -16,40 +16,32 @@ class GeminiService:
     def _find_available_model(self):
         """Find the first available model that supports generateContent"""
         try:
-            # List all available models
             available_models = genai.list_models()
             
-            # Find models that support generateContent
             for model in available_models:
                 if 'generateContent' in model.supported_generation_methods:
                     model_name = model.name.split('/')[-1]
-                    print(f"Available model: {model_name}")
                     
                     # Skip experimental models and high-quota models
                     if 'exp' in model_name or '2.5' in model_name:
-                        print(f"Skipping experimental model: {model_name}")
                         continue
                     
                     try:
                         self.model = genai.GenerativeModel(model_name)
                         print(f"✓ Using model: {model_name}")
                         return
-                    except Exception as e:
-                        print(f"✗ Cannot use {model_name}: {str(e)}")
+                    except:
                         continue
             
-            # If we get here, just use the first available model
             if available_models:
                 first_model = available_models[0].name.split('/')[-1]
                 self.model = genai.GenerativeModel(first_model)
                 print(f"✓ Using first available model: {first_model}")
                 return
             
-            raise Exception("No available models found. Check your API key.")
+            raise Exception("No available models found.")
         
         except Exception as e:
-            print(f"Error listing models: {str(e)}")
-            # Fallback to known working models
             for model_name in ["gemini-pro", "gemini-1.5-flash-latest", "gemini-1.5-flash"]:
                 try:
                     self.model = genai.GenerativeModel(model_name)
@@ -58,7 +50,7 @@ class GeminiService:
                 except:
                     continue
             
-            raise Exception("Could not find any working model. Please check your API key and quota.")
+            raise Exception("Could not find any working model.")
     
     def generate_questions(self, prompt: str) -> str:
         """Generate questions using Gemini API"""
@@ -75,34 +67,47 @@ class GeminiService:
             )
             return response.text
         except Exception as e:
-            error_msg = str(e)
-            raise Exception(f"Error generating questions with Gemini: {error_msg}")
+            raise Exception(f"Error generating questions with Gemini: {str(e)}")
     
     def parse_qa_pairs(self, response_text: str) -> List[Dict[str, str]]:
-        """Parse the generated response into Q&A pairs"""
+        """Parse the generated response into Q&A pairs with correct type detection"""
         qa_pairs = []
         
-        # Split by QUESTION pattern
+        # Split by QUESTION pattern more carefully
         questions = re.split(r'\*\*QUESTION \d+:\*\*', response_text)
         
         for i, section in enumerate(questions[1:], 1):
             # Split question and answer
-            parts = re.split(r'\*\*ANSWER \d+:\*\*', section)
+            parts = re.split(r'\*\*ANSWER \d+:\*\*', section, maxsplit=1)
             
             if len(parts) >= 2:
                 question_text = parts[0].strip()
                 answer_text = parts[1].strip()
                 
-                # Extract question type if present
-                question_type = "generic"
-                if "[PRACTICAL]" in question_text:
-                    question_type = "practical"
-                    question_text = question_text.replace("[PRACTICAL]", "").strip()
-                elif "[GENERIC]" in question_text:
-                    question_type = "generic"
-                    question_text = question_text.replace("[GENERIC]", "").strip()
+                # Clean up the text
+                question_text = question_text.strip()
+                answer_text = answer_text.strip()
                 
+                # Extract question type - look for (GENERIC) or (PRACTICAL) at end of question
+                question_type = "generic"  # default
+                
+                # Check for type markers in the question text
+                if "(PRACTICAL)" in question_text:
+                    question_type = "practical"
+                    question_text = question_text.replace("(PRACTICAL)", "").strip()
+                elif "(GENERIC)" in question_text:
+                    question_type = "generic"
+                    question_text = question_text.replace("(GENERIC)", "").strip()
+                
+                # Additional check: if type not found, check answer for hints
+                if question_type == "generic" and ("(PRACTICAL)" in answer_text):
+                    question_type = "practical"
+                
+                # Only add if both question and answer exist
                 if question_text and answer_text:
+                    # Limit answer to reasonable length (remove extra content)
+                    answer_text = answer_text[:500]
+                    
                     qa_pairs.append({
                         "id": i,
                         "question": question_text,
