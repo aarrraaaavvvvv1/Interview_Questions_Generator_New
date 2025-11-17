@@ -11,8 +11,10 @@ DIFFICULTY_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 # Gemini configuration - Model is auto-detected
 GEMINI_MAX_TOKENS = 1200
 GEMINI_TEMPERATURE = 0.6
+GEMINI_MODEL = "gemini-pro"  # Model auto-detected, this is just a fallback
 
 # FireCrawl configuration
+FIRECRAWL_MAX_PAGES = 5
 FIRECRAWL_TIMEOUT = 60
 
 # Document generation settings
