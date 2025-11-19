@@ -37,8 +37,8 @@ if 'word_bytes' not in st.session_state:
     st.session_state.word_bytes = None
 if 'last_params' not in st.session_state:
     st.session_state.last_params = None
-if 'last_curriculum' not in st.session_state:
-    st.session_state.last_curriculum = None
+if 'partner_institute' not in st.session_state:
+    st.session_state.partner_institute = "IIT Kanpur"
 
 # Sidebar - API Configuration
 st.sidebar.title("🔑 API Keys")
@@ -103,6 +103,14 @@ with tab1:
             help="Percentage of practical/business-based questions (rest will be generic)"
         )
     
+    # Partner Institute Selection
+    partner_institute = st.selectbox(
+        "Partner Institute",
+        ["IIT Kanpur", "IIT Guwahati"],
+        help="Select the partner institution for branding"
+    )
+    st.session_state.partner_institute = partner_institute
+    
     st.markdown("---")
     
     curriculum_context = st.text_area(
@@ -120,7 +128,8 @@ with tab1:
         'num_questions': num_questions,
         'practical_percentage': practical_percentage,
         'difficulty': difficulty,
-        'curriculum': curriculum_context
+        'curriculum': curriculum_context,
+        'partner': partner_institute
     }
     
     # Auto-clear cache if any parameter changed
@@ -152,7 +161,6 @@ with tab1:
         st.session_state.pdf_bytes = None
         st.session_state.word_bytes = None
         st.session_state.last_params = None
-        st.session_state.last_curriculum = None
         st.rerun()
     
     # Generation logic
@@ -203,20 +211,26 @@ with tab1:
                         web_content
                     )
                     
-                    # Generate questions
-                    with st.spinner("🤖 Generating questions with AI..."):
-                        response = gemini_service.generate_questions(prompt)
-                        qa_pairs = gemini_service.parse_qa_pairs(response)
+                    # Generate questions with retry logic
+                    max_retries = 3
+                    retry_count = 0
+                    qa_pairs = []
+                    
+                    while retry_count < max_retries and len(qa_pairs) != num_questions:
+                        if retry_count > 0:
+                            st.info(f"🔄 Retry attempt {retry_count}/{max_retries-1}...")
+                        
+                        with st.spinner(f"🤖 Generating questions (attempt {retry_count + 1})..."):
+                            response = gemini_service.generate_questions(prompt)
+                            qa_pairs = gemini_service.parse_qa_pairs(response, expected_count=num_questions)
+                        
+                        retry_count += 1
                     
                     if not qa_pairs:
                         st.error("❌ No questions generated. Try again.")
                     elif len(qa_pairs) != num_questions:
-                        st.warning(f"⚠️ Generated {len(qa_pairs)} questions instead of {num_questions}. Retrying...")
-                        # Retry once
-                        response = gemini_service.generate_questions(prompt)
-                        qa_pairs = gemini_service.parse_qa_pairs(response)
-                    
-                    if qa_pairs:
+                        st.error(f"❌ Generated {len(qa_pairs)} questions but requested {num_questions}. Please try again.")
+                    else:
                         # Verify distribution
                         practical_count = sum(1 for q in qa_pairs if q.get('type') == 'practical')
                         generic_count = len(qa_pairs) - practical_count
@@ -224,11 +238,7 @@ with tab1:
                         st.session_state.qa_pairs = qa_pairs
                         st.session_state.generated_topic = topic
                         
-                        st.success(f"✅ Generated {len(qa_pairs)} questions")
-                        
-                        if len(qa_pairs) != num_questions:
-                            st.warning(f"⚠️ Got {len(qa_pairs)} questions (requested {num_questions})")
-                        
+                        st.success(f"✅ Successfully generated exactly {len(qa_pairs)} questions!")
                         st.info(f"Distribution: {generic_count} generic, {practical_count} practical")
                     
                 except Exception as e:
@@ -275,7 +285,6 @@ with tab2:
                 if edited_q != qa['question'] or edited_a != qa['answer']:
                     st.session_state.qa_pairs[i-1]['question'] = edited_q
                     st.session_state.qa_pairs[i-1]['answer'] = edited_a
-                    # Clear cached documents when editing
                     st.session_state.pdf_bytes = None
                     st.session_state.word_bytes = None
                     st.success("✅ Updated")
@@ -303,20 +312,19 @@ with tab3:
                 key="pdf_title_input"
             )
             
-            # Generate PDF button
             if st.button("🔄 Generate PDF", use_container_width=True, key="gen_pdf_btn"):
                 try:
                     with st.spinner("Generating PDF..."):
                         pdf_gen = PDFGenerator(
                             pdf_title,
-                            st.session_state.generated_topic
+                            st.session_state.generated_topic,
+                            partner_institute=st.session_state.get('partner_institute', 'IIT Kanpur')
                         )
                         st.session_state.pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
                         st.success("✅ PDF generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
             
-            # Download PDF button (only shows if PDF is generated)
             if st.session_state.pdf_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 st.download_button(
@@ -335,7 +343,6 @@ with tab3:
                 key="word_title_input"
             )
             
-            # Generate Word button
             if st.button("🔄 Generate Word Document", use_container_width=True, key="gen_word_btn"):
                 try:
                     with st.spinner("Generating Word document..."):
@@ -343,13 +350,13 @@ with tab3:
                         st.session_state.word_bytes = word_gen.generate(
                             st.session_state.qa_pairs,
                             doc_title,
-                            st.session_state.generated_topic
+                            st.session_state.generated_topic,
+                            partner_institute=st.session_state.get('partner_institute', 'IIT Kanpur')
                         )
                         st.success("✅ Word document generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
             
-            # Download Word button (only shows if Word is generated)
             if st.session_state.word_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 st.download_button(
