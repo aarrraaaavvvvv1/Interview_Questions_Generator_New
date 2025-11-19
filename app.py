@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime
+import base64
 import sys
 import os
 
@@ -366,3 +367,19 @@ with tab3:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="download_word_btn"
                 )
+            if st.session_state.pdf_bytes:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=st.session_state.pdf_bytes,
+                    file_name=f"{pdf_title}_{timestamp}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_btn"
+                )
+                
+                # PDF PREVIEW
+                st.markdown("### 📄 PDF Preview")
+                base64_pdf = base64.b64encode(st.session_state.pdf_bytes).decode('utf-8')
+                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
+                st.markdown(pdf_display, unsafe_allow_html=True)
+
