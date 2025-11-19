@@ -2,7 +2,7 @@
 
 import re
 
-ROYAL_BLUE = "#4169E1"
+ROYAL_BLUE = "#3030ff"
 WHITE = "#FFFFFF"
 COVER_FONT = "Arial, sans-serif"
 CONTENT_FONT = "Calibri, sans-serif"
@@ -34,6 +34,11 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             size: A4;
             margin: 0;
         }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
         .cover-page {{
             height: 297mm;
             width: 210mm;
@@ -45,35 +50,37 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
         }}
         .cover-main {{
             flex: 1;
-            background-color: {ROYAL_BLUE};
+            background-color: {ROYAL_BLUE} !important;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: {WHITE};
+            color: {WHITE} !important;
             font-family: {COVER_FONT};
             text-align: center;
-            padding: 60px 40px;
+            padding: 80px 40px;
         }}
         .cover-title {{
-            font-size: {COVER_FONT_SIZE};
-            margin: 0 0 30px 0;
+            font-size: {COVER_FONT_SIZE} !important;
+            margin: 0 0 40px 0 !important;
             font-weight: bold;
-            color: {WHITE};
+            color: {WHITE} !important;
+            line-height: 1.4;
         }}
         .cover-topic {{
-            font-size: {COVER_FONT_SIZE};
-            margin: 30px 0 0 0;
+            font-size: {COVER_FONT_SIZE} !important;
+            margin: 40px 0 0 0 !important;
             font-weight: bold;
-            color: {WHITE};
+            color: {WHITE} !important;
+            line-height: 1.4;
         }}
         .cover-footer {{
-            background-color: {WHITE};
-            padding: 30px 20px;
+            background-color: {WHITE} !important;
+            padding: 40px 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 150px;
+            min-height: 160px;
         }}
         .partner-banner {{
             max-width: 80%;
@@ -92,8 +99,8 @@ def get_content_page_styles() -> str:
             margin: 25mm;
         }}
         body {{
-            font-family: {CONTENT_FONT};
-            font-size: {CONTENT_FONT_SIZE};
+            font-family: {CONTENT_FONT} !important;
+            font-size: {CONTENT_FONT_SIZE} !important;
             line-height: {LINE_SPACING};
             color: #000000;
             margin: 0;
@@ -103,37 +110,43 @@ def get_content_page_styles() -> str:
             padding: 20px;
         }}
         .question-block {{
-            margin: 30px 0;
+            margin: 35px 0;
             page-break-inside: avoid;
         }}
         .question-number {{
-            font-size: 16pt;
+            font-size: {CONTENT_FONT_SIZE} !important;
             font-weight: bold;
             color: #333333;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            font-family: {CONTENT_FONT} !important;
         }}
         .question-text {{
             font-weight: bold;
             text-align: justify;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: #000000;
-            font-size: {CONTENT_FONT_SIZE};
+            font-size: {CONTENT_FONT_SIZE} !important;
+            font-family: {CONTENT_FONT} !important;
+            line-height: {LINE_SPACING};
         }}
         .answer-text {{
             text-align: justify;
             margin-bottom: 20px;
             color: #000000;
-            font-size: {CONTENT_FONT_SIZE};
+            font-size: {CONTENT_FONT_SIZE} !important;
+            font-family: {CONTENT_FONT} !important;
+            line-height: {LINE_SPACING};
         }}
         .important {{
-            font-weight: bold;
+            font-weight: bold !important;
             color: {ROYAL_BLUE} !important;
         }}
         .type-badge {{
-            font-size: 12pt;
+            font-size: 14pt !important;
             font-style: italic;
             color: #666666;
             margin-bottom: 10px;
+            font-family: {CONTENT_FONT} !important;
         }}
     </style>
     """
