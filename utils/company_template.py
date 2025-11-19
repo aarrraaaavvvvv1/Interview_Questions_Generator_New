@@ -6,7 +6,7 @@ ROYAL_BLUE = "#4169E1"
 WHITE = "#FFFFFF"
 COVER_FONT = "Arial, sans-serif"
 CONTENT_FONT = "Calibri, sans-serif"
-COVER_FONT_SIZE = "24pt"
+COVER_FONT_SIZE = "18pt"
 CONTENT_FONT_SIZE = "18pt"
 LINE_SPACING = 1.5
 
@@ -30,15 +30,22 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
         </div>
     </div>
     <style>
+        @page {{
+            size: A4;
+            margin: 0;
+        }}
         .cover-page {{
-            height: 100vh;
+            height: 297mm;
+            width: 210mm;
             display: flex;
             flex-direction: column;
             page-break-after: always;
+            margin: 0;
+            padding: 0;
         }}
         .cover-main {{
             flex: 1;
-            background: {ROYAL_BLUE};
+            background-color: {ROYAL_BLUE};
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -46,30 +53,33 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             color: {WHITE};
             font-family: {COVER_FONT};
             text-align: center;
-            padding: 40px;
+            padding: 60px 40px;
         }}
         .cover-title {{
             font-size: {COVER_FONT_SIZE};
-            margin: 0 0 20px 0;
-            font-weight: normal;
+            margin: 0 0 30px 0;
+            font-weight: bold;
+            color: {WHITE};
         }}
         .cover-topic {{
             font-size: {COVER_FONT_SIZE};
-            margin: 20px 0 0 0;
-            font-weight: normal;
+            margin: 30px 0 0 0;
+            font-weight: bold;
+            color: {WHITE};
         }}
         .cover-footer {{
-            background: {WHITE};
-            padding: 20px;
+            background-color: {WHITE};
+            padding: 30px 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 120px;
+            min-height: 150px;
         }}
         .partner-banner {{
             max-width: 80%;
-            max-height: 80px;
+            max-height: 100px;
             height: auto;
+            object-fit: contain;
         }}
     </style>
     """
@@ -77,33 +87,47 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
 def get_content_page_styles() -> str:
     return f"""
     <style>
+        @page {{
+            size: A4;
+            margin: 25mm;
+        }}
         body {{
             font-family: {CONTENT_FONT};
             font-size: {CONTENT_FONT_SIZE};
             line-height: {LINE_SPACING};
             color: #000000;
-            margin: 40px;
+            margin: 0;
+            padding: 0;
+        }}
+        .content-page {{
+            padding: 20px;
         }}
         .question-block {{
-            margin: 25px 0;
+            margin: 30px 0;
+            page-break-inside: avoid;
         }}
         .question-number {{
             font-size: 16pt;
             font-weight: bold;
-            margin-bottom: 8px;
+            color: #333333;
+            margin-bottom: 10px;
         }}
         .question-text {{
             font-weight: bold;
             text-align: justify;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
+            color: #000000;
+            font-size: {CONTENT_FONT_SIZE};
         }}
         .answer-text {{
             text-align: justify;
             margin-bottom: 20px;
+            color: #000000;
+            font-size: {CONTENT_FONT_SIZE};
         }}
         .important {{
             font-weight: bold;
-            color: {ROYAL_BLUE};
+            color: {ROYAL_BLUE} !important;
         }}
         .type-badge {{
             font-size: 12pt;
@@ -115,10 +139,15 @@ def get_content_page_styles() -> str:
     """
 
 def format_answer_with_important_words(answer: str, important_words: list) -> str:
+    if not important_words:
+        return answer
+    
     formatted = answer
     important_words_sorted = sorted(important_words, key=len, reverse=True)
     
     for word in important_words_sorted:
+        if not word or not isinstance(word, str):
+            continue
         pattern = re.compile(re.escape(word), re.IGNORECASE)
         formatted = pattern.sub(f'<span class="important">{word}</span>', formatted)
     
