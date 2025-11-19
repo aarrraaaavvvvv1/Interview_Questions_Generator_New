@@ -1,11 +1,12 @@
-"""Gemini API integration - OPTIMIZED WITH DYNAMIC TOKEN ALLOCATION"""
+"""Gemini API integration for question generation - WITH RATE LIMIT HANDLING"""
 
 import google.generativeai as genai
 import re
+import time
 from typing import List, Dict
 
 class GeminiService:
-    """Service for interacting with Google Gemini API with optimized token handling"""
+    """Service for interacting with Google Gemini API"""
     
     def __init__(self, api_key: str):
         """Initialize Gemini API with API key"""
@@ -51,63 +52,52 @@ class GeminiService:
             
             raise Exception("Could not find any working model.")
     
-    def calculate_optimal_tokens(self, num_questions: int) -> int:
-        """
-        Calculate optimal max_output_tokens based on number of questions
-        
-        Formula:
-        - Question header: ~10 tokens
-        - Question text: ~25 tokens
-        - Answer header: ~10 tokens  
-        - Answer (100 words): ~130 tokens
-        - Formatting overhead: ~5 tokens per Q&A
-        
-        Total per Q&A: ~180 tokens
-        Add 20% safety margin
-        """
-        tokens_per_qa = 180
-        safety_margin = 1.2
-        
-        optimal = int(tokens_per_qa * num_questions * safety_margin)
-        
-        # Clamp between reasonable bounds
-        min_tokens = 1000
-        max_tokens = 8000  # Gemini's limit
-        
-        return max(min_tokens, min(optimal, max_tokens))
-    
     def generate_questions(self, prompt: str, num_questions: int = 10) -> str:
         """
-        Generate questions using Gemini API with dynamic token allocation
+        Generate questions using Gemini API with exponential backoff retry
         
         Args:
             prompt: The generation prompt
-            num_questions: Number of questions (for token calculation)
+            num_questions: Number of questions (for context)
         
         Returns:
             Generated text response
         """
-        try:
-            if self.model is None:
-                raise Exception("Model not initialized")
-            
-            # Calculate optimal tokens for this request
-            optimal_tokens = self.calculate_optimal_tokens(num_questions)
-            
-            print(f"✓ Allocating {optimal_tokens} tokens for {num_questions} questions")
-            
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=optimal_tokens,
-                    temperature=0.4,  # Lower for consistency
-                    top_p=0.9,
-                    top_k=40
+        if self.model is None:
+            raise Exception("Model not initialized")
+        
+        max_retries = 5
+        base_delay = 2  # Start with 2 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        max_output_tokens=2000,
+                        temperature=0.5,
+                    )
                 )
-            )
-            return response.text
-        except Exception as e:
-            raise Exception(f"Error generating questions with Gemini: {str(e)}")
+                return response.text
+                
+            except Exception as e:
+                error_message = str(e)
+                
+                # Check if it's a rate limit error (429)
+                if "429" in error_message or "Resource exhausted" in error_message or "quota" in error_message.lower():
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                        delay = base_delay * (2 ** attempt)
+                        print(f"⚠️ Rate limit hit. Waiting {delay} seconds before retry {attempt + 1}/{max_retries}...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        raise Exception(f"Rate limit exceeded after {max_retries} attempts. Please wait a few minutes and try again.")
+                else:
+                    # Different error, raise immediately
+                    raise Exception(f"Error generating questions with Gemini: {error_message}")
+        
+        raise Exception("Failed to generate questions after multiple retries")
     
     def parse_qa_pairs(self, response_text: str, expected_count: int = None) -> List[Dict[str, str]]:
         """
@@ -123,16 +113,16 @@ class GeminiService:
         qa_pairs = []
         
         # Remove markdown code blocks if present
-        response_text = response_text.replace('```', '')
+        response_text = response_text.replace('```
         
-        # Pattern to match QUESTION markers (flexible)
+        # Pattern to match QUESTION markers
         question_splits = re.split(
             r'\*{0,2}QUESTION\s+(\d+)\s*:?\*{0,2}',
             response_text,
             flags=re.IGNORECASE
         )
         
-        # Process pairs: question_splits = [preamble, num1, content1, num2, content2, ...]
+        # Process pairs
         i = 1
         while i < len(question_splits):
             if i + 1 >= len(question_splits):
@@ -141,7 +131,7 @@ class GeminiService:
             question_num = question_splits[i]
             content = question_splits[i + 1]
             
-            # Split content by ANSWER marker
+            # Split by ANSWER marker
             answer_match = re.search(
                 r'\*{0,2}ANSWER\s+\d+\s*:?\*{0,2}\s*(.+?)(?=\*{0,2}QUESTION|\Z)',
                 content,
@@ -152,15 +142,14 @@ class GeminiService:
                 question_text = content[:answer_match.start()].strip()
                 answer_text = answer_match.group(1).strip()
             else:
-                # Fallback: split by double newline
                 parts = content.split('\n\n', 1)
                 if len(parts) < 2:
                     i += 2
                     continue
-                question_text = parts[0].strip()
-                answer_text = parts[1].strip()
+                question_text = parts.strip()
+                answer_text = parts.strip()[1]
             
-            # Clean markdown symbols
+            # Clean markdown
             question_text = re.sub(r'\*+', '', question_text).strip()
             answer_text = re.sub(r'\*+', '', answer_text).strip()
             
@@ -175,10 +164,8 @@ class GeminiService:
             
             # Validate quality
             if question_text and answer_text and len(question_text) > 10 and len(answer_text) > 30:
-                # Word count validation for answers (should be 80-150 words)
                 word_count = len(answer_text.split())
                 
-                # Truncate if too long
                 if word_count > 180:
                     words = answer_text.split()[:150]
                     answer_text = ' '.join(words) + '...'
@@ -192,7 +179,6 @@ class GeminiService:
             
             i += 2
         
-        # Validation
         if expected_count and len(qa_pairs) != expected_count:
             print(f"⚠️ Warning: Expected {expected_count} questions, got {len(qa_pairs)}")
         
