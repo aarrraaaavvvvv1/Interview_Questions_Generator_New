@@ -1,314 +1,271 @@
-"""Document generation using WeasyPrint (PDF) and python-docx-template (Word)"""
+"""Document generation with company template - PDF and Word formats"""
 
-from weasyprint import HTML
 from io import BytesIO
 from datetime import datetime
 from typing import List, Dict
-from docxtpl import DocxTemplate
 import os
 
+try:
+    from weasyprint import HTML
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+
+from docx import Document
+from docx.shared import Pt, RGBColor, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+
+from utils.company_template import (
+    get_cover_page_html,
+    get_content_page_styles,
+    format_answer_with_important_words,
+    ROYAL_BLUE
+)
+from utils.important_words_detector import ImportantWordsDetector
+
+
 class PDFGenerator:
-    """Generate professional PDFs using WeasyPrint"""
+    """Generate PDF with company template using WeasyPrint"""
     
-    def __init__(self, title: str, topic: str):
-        """Initialize PDF generator"""
+    def __init__(self, title: str, topic: str, partner_institute: str = "IIT Kanpur"):
+        """
+        Initialize PDF generator with company branding
+        
+        Args:
+            title: Document title (e.g., "Interview Questions")
+            topic: Subject topic
+            partner_institute: Partner institution name
+        """
         self.title = title
         self.topic = topic
+        self.partner_institute = partner_institute
+        self.detector = ImportantWordsDetector(use_ai=False)
     
     def generate(self, qa_pairs: List[Dict]) -> bytes:
-        """Generate PDF from Q&A pairs using HTML/CSS"""
+        """
+        Generate PDF with company template
         
-        # Build HTML content
+        Args:
+            qa_pairs: List of question-answer dictionaries
+        
+        Returns:
+            PDF file as bytes
+        """
+        if not WEASYPRINT_AVAILABLE:
+            raise Exception("WeasyPrint not available. Install with: pip install weasyprint")
+        
+        # Detect important words for all answers
+        important_words_map = self.detector.detect_batch(qa_pairs)
+        
+        # Build HTML document
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
-            <style>
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                body {{
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    padding: 40px;
-                    background-color: #fff;
-                }}
-                
-                .header {{
-                    margin-bottom: 40px;
-                    border-bottom: 3px solid #2c3e50;
-                    padding-bottom: 20px;
-                }}
-                
-                .header h1 {{
-                    font-size: 28px;
-                    color: #2c3e50;
-                    margin-bottom: 10px;
-                }}
-                
-                .metadata {{
-                    font-size: 12px;
-                    color: #666;
-                    font-style: italic;
-                }}
-                
-                .metadata p {{
-                    margin: 3px 0;
-                }}
-                
-                .question-block {{
-                    margin: 30px 0;
-                    page-break-inside: avoid;
-                }}
-                
-                .question-number {{
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    margin-bottom: 8px;
-                }}
-                
-                .question-text {{
-                    font-size: 14px;
-                    color: #1a1a1a;
-                    margin-bottom: 8px;
-                    font-weight: 500;
-                }}
-                
-                .type-badge {{
-                    display: inline-block;
-                    padding: 3px 10px;
-                    border-radius: 3px;
-                    font-size: 11px;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                    font-style: italic;
-                }}
-                
-                .type-generic {{
-                    background-color: #e3f2fd;
-                    color: #1565c0;
-                    border: 1px solid #90caf9;
-                }}
-                
-                .type-practical {{
-                    background-color: #f3e5f5;
-                    color: #6a1b9a;
-                    border: 1px solid #ce93d8;
-                }}
-                
-                .answer-header {{
-                    font-size: 12px;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    margin-bottom: 8px;
-                    margin-top: 10px;
-                }}
-                
-                .answer-text {{
-                    font-size: 13px;
-                    color: #333;
-                    line-height: 1.7;
-                    background-color: #f5f5f5;
-                    padding: 12px;
-                    border-left: 3px solid #bbb;
-                    border-radius: 2px;
-                }}
-                
-                .separator {{
-                    border-bottom: 1px solid #ddd;
-                    margin: 20px 0;
-                }}
-                
-                @page {{
-                    size: A4;
-                    margin: 20px;
-                }}
-                
-                @media print {{
-                    body {{
-                        padding: 0;
-                    }}
-                }}
-            </style>
+            {get_content_page_styles()}
         </head>
         <body>
-            <div class="header">
-                <h1>{self.title}</h1>
-                <div class="metadata">
-                    <p><strong>Topic:</strong> {self.topic}</p>
-                    <p><strong>Generated:</strong> {datetime.now().strftime('%B %d, %Y at %H:%M:%S')}</p>
-                    <p><strong>Total Questions:</strong> {len(qa_pairs)}</p>
-                </div>
-            </div>
+            {get_cover_page_html(self.title, self.topic, self.partner_institute)}
+            
+            <div class="content-page">
         """
         
-        # Add questions
+        # Add questions and answers
         for i, qa in enumerate(qa_pairs, 1):
             qa_type = qa.get('type', 'generic').upper()
-            type_class = 'type-generic' if qa_type == 'GENERIC' else 'type-practical'
+            question = qa.get('question', '')
+            answer = qa.get('answer', '')
+            qa_id = qa.get('id')
+            
+            # Format answer with important words highlighted
+            important_words = important_words_map.get(qa_id, [])
+            formatted_answer = format_answer_with_important_words(answer, important_words)
             
             html_content += f"""
             <div class="question-block">
                 <div class="question-number">Question {i}</div>
-                <div class="question-text">{qa['question']}</div>
-                <div class="type-badge {type_class}">[{qa_type}]</div>
-                <div class="answer-header">Answer:</div>
-                <div class="answer-text">{qa['answer']}</div>
+                <div class="question-text">{question}</div>
+                <div class="type-badge">[{qa_type}]</div>
+                <div class="answer-text">{formatted_answer}</div>
             </div>
             """
         
         html_content += """
+            </div>
         </body>
         </html>
         """
         
-        # Generate PDF using WeasyPrint
-        try:
-            pdf_bytes = HTML(string=html_content).write_pdf()
-            return pdf_bytes
-        except Exception as e:
-            raise Exception(f"Error generating PDF: {str(e)}")
+        # Generate PDF
+        pdf_bytes = HTML(string=html_content).write_pdf()
+        return pdf_bytes
 
 
 class WordDocumentGenerator:
-    """Generate Word documents using docxtpl (template-based)"""
+    """Generate Word document with company template"""
     
     def __init__(self):
         """Initialize Word document generator"""
-        self.template_path = "interview_template.docx"
+        self.detector = ImportantWordsDetector(use_ai=False)
     
-    def create_template(self):
-        """Create a default template if it doesn't exist"""
-        if os.path.exists(self.template_path):
-            return True
+    def _add_cover_page(self, doc: Document, title: str, topic: str, partner_institute: str):
+        """
+        Add cover page with title, topic, and logo
         
-        # Create a basic template using python-docx
-        try:
-            from docx import Document
-            from docx.shared import Pt, RGBColor, Inches
-            from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-            
-            doc = Document()
-            
-            # Add title
-            title = doc.add_heading('Interview Questions', 0)
-            title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            
-            # Add metadata
+        Args:
+            doc: Document object
+            title: Document title
+            topic: Subject topic
+            partner_institute: Partner institution
+        """
+        # Add spacing
+        for _ in range(5):
             doc.add_paragraph()
-            meta = doc.add_paragraph()
-            meta.add_run('Topic: ').bold = True
-            meta.add_run('{{ topic }}')
-            
-            meta2 = doc.add_paragraph()
-            meta2.add_run('Generated: ').bold = True
-            meta2.add_run('{{ generated_date }}')
-            
-            doc.add_paragraph()
-            
-            # Add questions section with Jinja2 template syntax
-            doc.add_heading('Questions', level=1)
-            
-            # Add template marker
-            p = doc.add_paragraph('{% for qa in questions %}')
-            p.style = 'No Spacing'
-            
-            doc.add_heading('Question {{ loop.index }}', level=2)
-            
-            q = doc.add_paragraph('{{ qa.question }}')
-            q.runs[0].bold = True
-            
-            doc.add_paragraph()
-            t = doc.add_paragraph()
-            t.add_run('Type: ').bold = True
-            t.add_run('[{{ qa.type|upper }}]')
-            
-            doc.add_paragraph()
-            
-            a = doc.add_paragraph()
-            a.add_run('Answer: ').bold = True
-            doc.add_paragraph('{{ qa.answer }}')
-            
-            doc.add_paragraph()
-            
-            # Add end template marker
-            p = doc.add_paragraph('{% endfor %}')
-            p.style = 'No Spacing'
-            
-            # Save template
-            doc.save(self.template_path)
-            return True
         
-        except Exception as e:
-            print(f"Warning: Could not create template: {str(e)}")
-            return False
+        # Title
+        title_para = doc.add_paragraph()
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title_run = title_para.add_run(title)
+        title_run.font.name = 'Arial'
+        title_run.font.size = Pt(24)
+        title_run.font.color.rgb = RGBColor(65, 105, 225)
+        title_run.bold = True
+        
+        doc.add_paragraph()
+        
+        # Topic
+        topic_para = doc.add_paragraph()
+        topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        topic_run = topic_para.add_run(topic)
+        topic_run.font.name = 'Arial'
+        topic_run.font.size = Pt(24)
+        topic_run.font.color.rgb = RGBColor(65, 105, 225)
+        topic_run.bold = True
+        
+        # Add spacing before logo
+        for _ in range(8):
+            doc.add_paragraph()
+        
+        # Add partner logo if exists
+        from utils.company_template import PARTNER_LOGOS
+        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS.get("Default"))
+        
+        if os.path.exists(logo_path):
+            logo_para = doc.add_paragraph()
+            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = logo_para.add_run()
+            run.add_picture(logo_path, width=Inches(5))
+        
+        # Page break after cover
+        doc.add_page_break()
     
-    def generate(self, qa_pairs: List[Dict], title: str, topic: str) -> bytes:
-        """Generate Word document from Q&A pairs"""
+    def _apply_answer_formatting(self, paragraph, answer: str, important_words: List[str]):
+        """
+        Apply formatting to answer with important words highlighted
         
-        # Ensure template exists
-        if not os.path.exists(self.template_path):
-            if not self.create_template():
-                raise Exception(f"Template file not found: {self.template_path}")
+        Args:
+            paragraph: Paragraph object
+            answer: Answer text
+            important_words: List of words to highlight
+        """
+        # Split answer by important words and format
+        remaining = answer
         
-        try:
-            # Load template
-            doc = DocxTemplate(self.template_path)
-            
-            # Prepare context for Jinja2
-            context = {
-                "topic": topic,
-                "generated_date": datetime.now().strftime('%B %d, %Y at %H:%M:%S'),
-                "questions": qa_pairs
-            }
-            
-            # Render template
-            doc.render(context)
-            
-            # Save to BytesIO for download
-            buffer = BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-            return buffer.getvalue()
+        for word in important_words:
+            if word.lower() in remaining.lower():
+                import re
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                match = pattern.search(remaining)
+                
+                if match:
+                    # Text before important word
+                    before = remaining[:match.start()]
+                    if before:
+                        run = paragraph.add_run(before)
+                        run.font.name = 'Calibri'
+                        run.font.size = Pt(18)
+                    
+                    # Important word (bold + blue)
+                    important_run = paragraph.add_run(match.group())
+                    important_run.font.name = 'Calibri'
+                    important_run.font.size = Pt(18)
+                    important_run.font.bold = True
+                    important_run.font.color.rgb = RGBColor(65, 105, 225)
+                    
+                    # Continue with rest
+                    remaining = remaining[match.end():]
         
-        except Exception as e:
-            raise Exception(f"Error generating Word document: {str(e)}")
-
-
-def generate_markdown_document(qa_pairs: List[Dict], title: str, topic: str) -> str:
-    """Generate markdown formatted document (kept for reference)"""
-    md_content = f"""# {title}
-
-**Topic:** {topic}  
-**Generated:** {datetime.now().strftime('%B %d, %Y at %H:%M:%S')}  
-**Total Questions:** {len(qa_pairs)}
-
----
-
-"""
+        # Add remaining text
+        if remaining:
+            run = paragraph.add_run(remaining)
+            run.font.name = 'Calibri'
+            run.font.size = Pt(18)
     
-    for i, qa in enumerate(qa_pairs, 1):
-        qa_type = qa.get('type', 'generic').upper()
-        type_label = "[GENERIC]" if qa_type == "GENERIC" else "[PRACTICAL]"
+    def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
+        """
+        Generate Word document with company template
         
-        md_content += f"""## Question {i}
-
-**{qa['question']}**
-
-**Type:** {type_label}
-
-### Answer
-
-{qa['answer']}
-
----
-
-"""
-    
-    return md_content
+        Args:
+            qa_pairs: List of Q&A dictionaries
+            title: Document title
+            topic: Subject topic
+            partner_institute: Partner institution
+        
+        Returns:
+            Word document as bytes
+        """
+        doc = Document()
+        
+        # Add cover page
+        self._add_cover_page(doc, title, topic, partner_institute)
+        
+        # Detect important words
+        important_words_map = self.detector.detect_batch(qa_pairs)
+        
+        # Add questions and answers
+        for i, qa in enumerate(qa_pairs, 1):
+            qa_type = qa.get('type', 'generic').upper()
+            question = qa.get('question', '')
+            answer = qa.get('answer', '')
+            qa_id = qa.get('id')
+            
+            # Question number
+            q_num_para = doc.add_paragraph()
+            q_num_run = q_num_para.add_run(f"Question {i}")
+            q_num_run.font.name = 'Calibri'
+            q_num_run.font.size = Pt(16)
+            q_num_run.font.bold = True
+            
+            # Question text
+            q_para = doc.add_paragraph()
+            q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            q_run = q_para.add_run(question)
+            q_run.font.name = 'Calibri'
+            q_run.font.size = Pt(18)
+            q_run.font.bold = True
+            q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            
+            # Type badge
+            type_para = doc.add_paragraph()
+            type_run = type_para.add_run(f"[{qa_type}]")
+            type_run.font.name = 'Calibri'
+            type_run.font.size = Pt(12)
+            type_run.font.italic = True
+            
+            # Answer with important words highlighted
+            a_para = doc.add_paragraph()
+            a_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            a_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            
+            important_words = important_words_map.get(qa_id, [])
+            self._apply_answer_formatting(a_para, answer, important_words)
+            
+            # Spacing
+            doc.add_paragraph()
+        
+        # Save to bytes
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
