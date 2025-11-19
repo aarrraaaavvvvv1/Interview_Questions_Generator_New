@@ -56,7 +56,8 @@ class GeminiService:
                 raise Exception("Empty response from Gemini")
                 
             except Exception as e:
-                if "429" in str(e) or "quota" in str(e).lower():
+                error_str = str(e)
+                if "429" in error_str or "quota" in error_str.lower():
                     if attempt < max_retries - 1:
                         time.sleep(5 * (attempt + 1))
                         continue
