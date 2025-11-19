@@ -69,7 +69,8 @@ class GeminiService:
             return []
         
         qa_pairs = []
-        response_text = response_text.replace('```
+        response_text = response_text.replace('```', '')
+
         
         question_splits = re.split(
             r'\*{0,2}QUESTION\s+(\d+)\s*:?\*{0,2}',
