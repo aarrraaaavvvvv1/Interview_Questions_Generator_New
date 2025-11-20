@@ -1,4 +1,4 @@
-"""Document generators - Original logo size"""
+"""Document generators - Questions flow naturally without page breaks"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -152,7 +152,6 @@ class PDFGenerator:
 
         .question-block {{
             margin-bottom: 25px;
-            page-break-inside: avoid;
         }}
 
         .question-header {{
@@ -261,7 +260,6 @@ class WordDocumentGenerator:
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
             try:
-                # Use original size - no width constraint
                 run = logo_para.add_run()
                 run.add_picture(logo_path)
             except:
@@ -275,10 +273,11 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(0.72)
         new_section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES
+        # CONTENT PAGES - Questions flow naturally
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
+            
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -286,7 +285,10 @@ class WordDocumentGenerator:
             q_run.font.size = Pt(16)
             q_run.font.bold = True
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            # Don't set keep_with_next or page_break_before
+            
             doc.add_paragraph()
+            
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -294,14 +296,18 @@ class WordDocumentGenerator:
             ans_header_run.font.size = Pt(16)
             ans_header_run.font.bold = True
             ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            
             doc.add_paragraph()
+            
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
             ans_run.font.size = Pt(16)
             ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            
             doc.add_paragraph()
+        
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
