@@ -1,4 +1,4 @@
-"""Document generators - logo centered and at bottom in PDF/Word covers"""
+"""Document generators - Original logo size"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -126,7 +126,7 @@ class PDFGenerator:
             align-items: flex-end;
             position: relative;
             text-align: center;
-            padding: 0;
+            padding: 10px 0;
             margin: 0;
         }}
         .footer-logo-wrapper {{
@@ -134,13 +134,12 @@ class PDFGenerator:
             height: 100%;
             display: flex;
             justify-content: center;
-            align-items: flex-end;
-            min-height: 100px;
+            align-items: center;
         }}
         .partner-banner {{
-            max-width: 90%;
-            max-height: 75px;
-            height: 75px;
+            max-width: 100%;
+            height: auto;
+            width: auto;
             display: block;
             margin: 0 auto;
             padding: 0;
@@ -256,16 +255,18 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo centered at bottom
+        # WHITE FOOTER - Logo at original size
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
             try:
+                # Use original size - no width constraint
                 run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(6.0))
+                run.add_picture(logo_path)
             except:
                 pass
+        
         # Content section
         doc.add_page_break()
         new_section = doc.add_section()
