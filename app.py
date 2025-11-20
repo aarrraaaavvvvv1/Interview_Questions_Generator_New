@@ -12,7 +12,7 @@ try:
     from utils.document_generator import PDFGenerator, WordDocumentGenerator
     from config import (
         DIFFICULTY_LEVELS, MIN_QUESTIONS, MAX_QUESTIONS,
-        MIN_PRACTICAL_PERCENTAGE, MAX_PRACTICAL_PERCENTAGE, DOCUMENT_TITLE_FORMAT
+        MIN_PRACTICAL_PERCENTAGE, MAX_PRACTICAL_PERCENTAGE
     )
 except ImportError as e:
     st.error(f"Import Error: {str(e)}")
@@ -170,14 +170,17 @@ with tab3:
         
         export_format = st.selectbox("Export Format", ["PDF", "Word Document"])
         
+        # Document title is auto-generated: "Interview Questions" + topic
+        doc_title = "Interview Questions"
+        doc_topic = st.session_state.generated_topic
+        
         if export_format == "PDF":
             st.markdown("### PDF Export")
-            pdf_title = st.text_input("Document Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="pdf_title")
             
             if st.button("🔄 Generate PDF", use_container_width=True, key="gen_pdf_btn"):
                 try:
                     with st.spinner("Generating PDF..."):
-                        pdf_gen = PDFGenerator(pdf_title, st.session_state.generated_topic, st.session_state.partner_institute)
+                        pdf_gen = PDFGenerator(doc_title, doc_topic, st.session_state.partner_institute)
                         st.session_state.pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
                         st.success("✅ PDF generated!")
                 except Exception as e:
@@ -185,33 +188,34 @@ with tab3:
             
             if st.session_state.pdf_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"Interview_Questions_{doc_topic.replace(' ', '_')}_{timestamp}.pdf"
                 st.download_button(
                     label="📥 Download PDF",
                     data=st.session_state.pdf_bytes,
-                    file_name=f"{pdf_title}_{timestamp}.pdf",
+                    file_name=filename,
                     mime="application/pdf",
                     key="download_pdf_btn"
                 )
         
         else:
             st.markdown("### Word Document Export")
-            doc_title = st.text_input("Document Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="doc_title")
             
             if st.button("🔄 Generate Word Document", use_container_width=True, key="gen_word_btn"):
                 try:
                     with st.spinner("Generating Word document..."):
                         word_gen = WordDocumentGenerator()
-                        st.session_state.word_bytes = word_gen.generate(st.session_state.qa_pairs, doc_title, st.session_state.generated_topic, st.session_state.partner_institute)
+                        st.session_state.word_bytes = word_gen.generate(st.session_state.qa_pairs, doc_title, doc_topic, st.session_state.partner_institute)
                         st.success("✅ Word document generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
             
             if st.session_state.word_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"Interview_Questions_{doc_topic.replace(' ', '_')}_{timestamp}.docx"
                 st.download_button(
                     label="📥 Download Word Document",
                     data=st.session_state.word_bytes,
-                    file_name=f"{doc_title}_{timestamp}.docx",
+                    file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="download_word_btn"
                 )
