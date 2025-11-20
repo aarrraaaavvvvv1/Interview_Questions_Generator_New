@@ -1,4 +1,4 @@
-"""Document generators - Word with blue cover matching PDF"""
+"""Document generators - exact specifications: 24pt cover, 18pt content, justified 1.5 spacing"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -12,7 +12,7 @@ except:
 
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -70,7 +70,7 @@ class PDFGenerator:
             margin: 0;
             padding: 0;
             font-family: Calibri, sans-serif;
-            font-size: 11pt;
+            font-size: 18pt;
             line-height: 1.5;
             color: #000000;
         }}
@@ -98,7 +98,7 @@ class PDFGenerator:
         }}
         
         .cover-title {{
-            font-size: 18pt;
+            font-size: 24pt;
             margin: 0 0 40px 0;
             font-weight: bold;
             color: #FFFFFF;
@@ -106,7 +106,7 @@ class PDFGenerator:
         }}
         
         .cover-topic {{
-            font-size: 18pt;
+            font-size: 24pt;
             margin: 40px 0 0 0;
             font-weight: bold;
             color: #FFFFFF;
@@ -149,7 +149,7 @@ class PDFGenerator:
         }}
         
         .question-header {{
-            font-size: 11pt;
+            font-size: 18pt;
             font-weight: bold;
             margin-bottom: 10px;
             color: #000000;
@@ -157,7 +157,7 @@ class PDFGenerator:
         }}
         
         .answer-header {{
-            font-size: 11pt;
+            font-size: 18pt;
             font-weight: bold;
             margin-bottom: 10px;
             margin-top: 10px;
@@ -166,7 +166,7 @@ class PDFGenerator:
         }}
         
         .answer-text {{
-            font-size: 11pt;
+            font-size: 18pt;
             text-align: justify;
             line-height: 1.5;
             margin-bottom: 15px;
@@ -207,7 +207,7 @@ class WordDocumentGenerator:
         pass
     
     def _add_blue_background(self, paragraph):
-        """Add blue background to paragraph (simulating blue cover)"""
+        """Add royal blue #3030ff background to paragraph"""
         shading_elm = OxmlElement('w:shd')
         shading_elm.set(qn('w:fill'), '3030FF')
         paragraph._element.get_or_add_pPr().append(shading_elm)
@@ -215,54 +215,54 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # Set margins for first section (cover page)
+        # First section - cover page with zero margins
         section = doc.sections[0]
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE COVER PAGE
-        # Add spacing
-        for _ in range(6):
+        # BLUE COVER PAGE - Fill entire page with blue
+        # Calculate lines needed to fill page (approx 60 lines for A4)
+        for _ in range(10):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # Title - White text on blue background, Calibri 18pt bold
+        # Title - White Calibri 24pt bold on blue
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(18)
+        title_run.font.size = Pt(24)
         title_run.font.bold = True
-        title_run.font.color.rgb = RGBColor(255, 255, 255)  # White
+        title_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Spacing with blue background
-        for _ in range(2):
+        # Spacing with blue
+        for _ in range(3):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # Topic - White text on blue background, Calibri 18pt bold
+        # Topic - White Calibri 24pt bold on blue
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(18)
+        topic_run.font.size = Pt(24)
         topic_run.font.bold = True
-        topic_run.font.color.rgb = RGBColor(255, 255, 255)  # White
+        topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # More spacing with blue background
-        for _ in range(6):
+        # More blue spacing until footer area
+        for _ in range(8):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # White footer section for logo
+        # WHITE FOOTER AREA with logo
         for _ in range(2):
             doc.add_paragraph()
         
-        # Logo - centered on white background
+        # Logo - centered in white footer
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -274,7 +274,10 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # Add new section for content pages with normal margins
+        for _ in range(2):
+            doc.add_paragraph()
+        
+        # New section for content with normal margins
         doc.add_page_break()
         new_section = doc.add_section()
         new_section.top_margin = Inches(1.0)
@@ -282,38 +285,40 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(1.0)
         new_section.right_margin = Inches(1.0)
         
-        # CONTENT PAGES - Calibri 11pt throughout
+        # CONTENT PAGES - Calibri 18pt, justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header - Calibri 11pt bold
+            # Question header - Calibri 18pt bold
             q_para = doc.add_paragraph()
-            q_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(11)
+            q_run.font.size = Pt(18)
             q_run.font.bold = True
+            q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
             
-            # Answer header - Calibri 11pt bold
+            # Answer header - Calibri 18pt bold
             ans_header_para = doc.add_paragraph()
-            ans_header_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(11)
+            ans_header_run.font.size = Pt(18)
             ans_header_run.font.bold = True
+            ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
             
-            # Answer text - Calibri 11pt, justified, line spacing 1.5
+            # Answer text - Calibri 18pt, justified, 1.5 spacing
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(11)
-            ans_para.paragraph_format.line_spacing = 1.5
+            ans_run.font.size = Pt(18)
+            ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
         
