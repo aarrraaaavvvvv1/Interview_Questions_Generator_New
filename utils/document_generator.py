@@ -1,4 +1,4 @@
-"""Document generators matching sample format"""
+"""Document generators with proper PDF margins matching sample"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -14,7 +14,22 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from utils.company_template import get_cover_page_html, get_content_page_styles, PARTNER_LOGO_URLS, PARTNER_LOGOS
+from utils.company_template import PARTNER_LOGO_URLS, PARTNER_LOGOS
+
+def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
+    logo_url = PARTNER_LOGO_URLS.get(partner_institute, PARTNER_LOGO_URLS["Default"])
+    
+    return f"""
+    <div class="cover-page">
+        <div class="cover-main">
+            <h1 class="cover-title">{title}</h1>
+            <h2 class="cover-topic">{topic}</h2>
+        </div>
+        <div class="cover-footer">
+            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+        </div>
+    </div>
+    """
 
 class PDFGenerator:
     def __init__(self, title: str, topic: str, partner_institute: str = "IIT Kanpur"):
@@ -30,7 +45,116 @@ class PDFGenerator:
 <html>
 <head>
     <meta charset="UTF-8">
-    {get_content_page_styles()}
+    <style>
+        /* Cover page - no margins */
+        @page cover {{
+            size: A4;
+            margin: 0;
+        }}
+        
+        /* Content pages - with margins */
+        @page content {{
+            size: A4;
+            margin: 25mm 25mm 25mm 25mm;
+        }}
+        
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: Calibri, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #000000;
+        }}
+        
+        /* Cover page styling */
+        .cover-page {{
+            page: cover;
+            height: 297mm;
+            width: 210mm;
+            display: flex;
+            flex-direction: column;
+            page-break-after: always;
+        }}
+        
+        .cover-main {{
+            flex: 1;
+            background-color: #3030ff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #FFFFFF;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 80px 40px;
+        }}
+        
+        .cover-title {{
+            font-size: 18pt;
+            margin: 0 0 40px 0;
+            font-weight: bold;
+            color: #FFFFFF;
+        }}
+        
+        .cover-topic {{
+            font-size: 18pt;
+            margin: 40px 0 0 0;
+            font-weight: bold;
+            color: #FFFFFF;
+        }}
+        
+        .cover-footer {{
+            background-color: #FFFFFF;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 160px;
+        }}
+        
+        .partner-banner {{
+            max-width: 80%;
+            max-height: 100px;
+            height: auto;
+        }}
+        
+        /* Content pages styling */
+        .content-page {{
+            page: content;
+        }}
+        
+        .question-block {{
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }}
+        
+        .question-header {{
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #000000;
+            font-family: Calibri, sans-serif;
+        }}
+        
+        .answer-header {{
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            margin-top: 10px;
+            color: #000000;
+            font-family: Calibri, sans-serif;
+        }}
+        
+        .answer-text {{
+            font-size: 11pt;
+            text-align: justify;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            color: #000000;
+            font-family: Calibri, sans-serif;
+        }}
+    </style>
 </head>
 <body>
 {get_cover_page_html(self.title, self.topic, self.partner_institute)}
@@ -77,7 +201,7 @@ class WordDocumentGenerator:
         for _ in range(6):
             doc.add_paragraph()
         
-        # Title - centered, Arial 18pt bold
+        # Title
         title_para = doc.add_paragraph()
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
@@ -88,7 +212,7 @@ class WordDocumentGenerator:
         doc.add_paragraph()
         doc.add_paragraph()
         
-        # Topic - centered, Arial 18pt bold
+        # Topic
         topic_para = doc.add_paragraph()
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
@@ -112,12 +236,12 @@ class WordDocumentGenerator:
         
         doc.add_page_break()
         
-        # CONTENT PAGES - Matching sample format exactly
+        # CONTENT PAGES
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header: "Question X: [question text]" - Calibri 11pt bold
+            # Question header
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -128,7 +252,7 @@ class WordDocumentGenerator:
             # Empty line
             doc.add_paragraph()
             
-            # Answer header: "Answer:" - Calibri 11pt bold
+            # Answer header
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -139,7 +263,7 @@ class WordDocumentGenerator:
             # Empty line
             doc.add_paragraph()
             
-            # Answer text - Calibri 11pt, justified, line spacing 1.5
+            # Answer text
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
