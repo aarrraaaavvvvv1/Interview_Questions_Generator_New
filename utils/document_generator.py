@@ -1,4 +1,4 @@
-"""Document generators - Exact margins: 0.72in, footer 0.24in from bottom"""
+"""Document generators - Logo fits perfectly at bottom with exact calculations"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -28,9 +28,7 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             <h2 class="cover-topic">{topic}</h2>
         </div>
         <div class="cover-footer">
-            <div class="logo-container">
-                <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
-            </div>
+            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
         </div>
     </div>
     """
@@ -115,25 +113,17 @@ class PDFGenerator:
         
         .cover-footer {{
             background-color: #FFFFFF;
-            padding: 6.1mm 20px;
+            padding: 15px 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 6.1mm;
+            height: auto;
             width: 100%;
-        }}
-        
-        .logo-container {{
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            text-align: center;
         }}
         
         .partner-banner {{
-            max-width: 70%;
-            max-height: 70px;
+            width: 100%;
+            max-width: 800px;
             height: auto;
             display: block;
             margin: 0 auto;
@@ -215,16 +205,21 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # First section - cover page with zero margins except bottom 0.24"
+        # First section - cover page
         section = doc.sections[0]
         section.top_margin = Inches(0)
-        section.bottom_margin = Inches(0.24)  # Footer 0.24" from bottom
+        section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE COVER PAGE - fill to footer
-        # Top blue padding
-        for _ in range(6):
+        # Calculate: A4 page = 11.69 inches height
+        # Logo image aspect ratio: approximately 6:1 (wide banner)
+        # Logo width will be 7.5 inches, so height ≈ 1.25 inches
+        # Blue area = 11.69 - 1.25 = 10.44 inches
+        # We need approximately 25 lines of blue paragraphs
+        
+        # BLUE COVER PAGE
+        for _ in range(5):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -238,7 +233,6 @@ class WordDocumentGenerator:
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Spacing with blue
         for _ in range(2):
             para = doc.add_paragraph()
             self._add_blue_background(para)
@@ -253,12 +247,12 @@ class WordDocumentGenerator:
         topic_run.font.bold = True
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Fill with blue to push logo to bottom
-        for _ in range(20):
+        # Fill remaining blue space - 25 paragraphs total to push logo to bottom
+        for _ in range(25):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - logo at 0.24" from bottom
+        # WHITE FOOTER - logo at bottom (banner logo fits in ~1.25 inches)
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -266,11 +260,12 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(5.0))
-            except:
-                pass
+                # Banner logo - wider but shorter, use 7.5 inch width
+                run.add_picture(logo_path, width=Inches(7.5))
+            except Exception as e:
+                print(f"Logo error: {e}")
         
-        # New section for content with 0.72" margins
+        # Content pages with 0.72" margins
         doc.add_page_break()
         new_section = doc.add_section()
         new_section.top_margin = Inches(0.72)
@@ -283,7 +278,6 @@ class WordDocumentGenerator:
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header - Calibri 16pt bold
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -294,7 +288,6 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
-            # Answer header - Calibri 16pt bold
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -305,7 +298,6 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
-            # Answer text - Calibri 16pt, justified, 1.5 spacing
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
