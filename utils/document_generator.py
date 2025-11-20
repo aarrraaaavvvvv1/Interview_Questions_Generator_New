@@ -214,7 +214,7 @@ class WordDocumentGenerator:
         section.right_margin = Inches(0)
         
         # BLUE BACKGROUND - Fill 90% of page (~25 paragraphs)
-        for _ in range(12):
+        for _ in range(9):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
