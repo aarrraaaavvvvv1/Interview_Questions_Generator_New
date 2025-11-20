@@ -1,4 +1,4 @@
-"""Document generators - Logo centered in PDF"""
+"""Document generators - logo centered and at bottom in PDF/Word covers"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -20,7 +20,6 @@ from utils.company_template import PARTNER_LOGO_URLS, PARTNER_LOGOS
 
 def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
     logo_url = PARTNER_LOGO_URLS.get(partner_institute, PARTNER_LOGO_URLS["Default"])
-    
     return f"""
     <div class="cover-page">
         <div class="cover-main">
@@ -30,7 +29,9 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             </div>
         </div>
         <div class="cover-footer">
-            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            <div class="footer-logo-wrapper">
+                <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            </div>
         </div>
     </div>
     """
@@ -59,13 +60,7 @@ class PDFGenerator:
             size: A4;
             margin: 18.3mm 18.3mm 18.3mm 18.3mm;
         }}
-        
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        
+
         body {{
             margin: 0;
             padding: 0;
@@ -82,22 +77,30 @@ class PDFGenerator:
             width: 210mm;
             display: flex;
             flex-direction: column;
+            justify-content: flex-end;
             page-break-after: always;
         }}
         
         .cover-main {{
-            flex: 1;
             background-color: #3030ff;
+            flex: 1;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 40px;
+            min-height: 87%;
+            height: 87%;
+            padding: 0;
         }}
-        
         .cover-content {{
+            width: 100%;
+            height: 100%;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }}
-        
         .cover-title {{
             font-size: 48pt;
             font-weight: bold;
@@ -113,35 +116,46 @@ class PDFGenerator:
             font-family: Calibri, sans-serif;
             margin-top: 30px;
         }}
-        
         .cover-footer {{
-            background-color: #FFFFFF;
-            padding: 20px;
+            height: 13%;
+            background: #FFF;
+            width: 100%;
+            min-height: 100px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100px;
+            align-items: flex-end;
+            position: relative;
             text-align: center;
+            padding: 0;
+            margin: 0;
         }}
-        
+        .footer-logo-wrapper {{
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            min-height: 100px;
+        }}
         .partner-banner {{
             max-width: 90%;
-            max-height: 80px;
-            height: auto;
+            max-height: 75px;
+            height: 75px;
             display: block;
             margin: 0 auto;
+            padding: 0;
         }}
-        
+
         /* CONTENT PAGES */
         .content-page {{
             page: content;
         }}
-        
+
         .question-block {{
             margin-bottom: 25px;
             page-break-inside: avoid;
         }}
-        
+
         .question-header {{
             font-size: 16pt;
             font-weight: bold;
@@ -149,7 +163,7 @@ class PDFGenerator:
             color: #000000;
             font-family: Calibri, sans-serif;
         }}
-        
+
         .answer-header {{
             font-size: 16pt;
             font-weight: bold;
@@ -158,7 +172,7 @@ class PDFGenerator:
             color: #000000;
             font-family: Calibri, sans-serif;
         }}
-        
+
         .answer-text {{
             font-size: 16pt;
             text-align: justify;
@@ -171,14 +185,11 @@ class PDFGenerator:
 </head>
 <body>
 {get_cover_page_html(self.title, self.topic, self.partner_institute)}
-
 <div class="content-page">
 """
-        
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
-            
             html_content += f"""
 <div class="question-block">
     <div class="question-header">Question {i}: {question}</div>
@@ -186,15 +197,12 @@ class PDFGenerator:
     <div class="answer-text">{answer}</div>
 </div>
 """
-        
         html_content += """
 </div>
 </body>
 </html>"""
-        
         pdf_bytes = HTML(string=html_content).write_pdf()
         return pdf_bytes
-
 
 class WordDocumentGenerator:
     def __init__(self):
@@ -208,15 +216,14 @@ class WordDocumentGenerator:
     
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
-        
-        # Cover page section - zero margins
+        # Cover page section (no margins)
         section = doc.sections[0]
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE BACKGROUND - Fill 90% of page
+        # BLUE BACKGROUND
         for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
@@ -231,7 +238,6 @@ class WordDocumentGenerator:
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Spacing
         for _ in range(2):
             para = doc.add_paragraph()
             self._add_blue_background(para)
@@ -246,15 +252,13 @@ class WordDocumentGenerator:
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Fill rest with blue
         for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo centered
+        # WHITE FOOTER - Logo centered at bottom
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
             try:
@@ -262,7 +266,6 @@ class WordDocumentGenerator:
                 run.add_picture(logo_path, width=Inches(6.0))
             except:
                 pass
-        
         # Content section
         doc.add_page_break()
         new_section = doc.add_section()
@@ -275,7 +278,6 @@ class WordDocumentGenerator:
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
-            
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -283,9 +285,7 @@ class WordDocumentGenerator:
             q_run.font.size = Pt(16)
             q_run.font.bold = True
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            
             doc.add_paragraph()
-            
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -293,18 +293,14 @@ class WordDocumentGenerator:
             ans_header_run.font.size = Pt(16)
             ans_header_run.font.bold = True
             ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            
             doc.add_paragraph()
-            
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
             ans_run.font.size = Pt(16)
             ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            
             doc.add_paragraph()
-        
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
