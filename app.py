@@ -3,6 +3,7 @@ from datetime import datetime
 import sys
 import os
 import base64
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -336,11 +337,19 @@ with tab3:
                     key="download_pdf_btn"
                 )
                 
-                # PDF PREVIEW
+                # PDF PREVIEW - Fixed method
                 st.markdown("### 📄 PDF Preview")
-                base64_pdf = base64.b64encode(st.session_state.pdf_bytes).decode('utf-8')
-                pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
-                st.markdown(pdf_display, unsafe_allow_html=True)
+                st.markdown("*Download the PDF if preview doesn't appear in your browser.*")
+                
+                # Alternative preview button
+                st.download_button(
+                    label="📱 Open PDF in New Tab",
+                    data=st.session_state.pdf_bytes,
+                    file_name=f"preview_{pdf_title}.pdf",
+                    mime="application/pdf",
+                    key="preview_pdf_btn",
+                    help="Click to open PDF in a new tab for preview"
+                )
         
         elif export_format == "Word Document":
             st.markdown("### Word Document Export")
