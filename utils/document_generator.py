@@ -1,4 +1,4 @@
-"""Document generators - Centered text, logo at bottom matching reference"""
+"""Document generators - Logo centered in PDF"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -121,12 +121,15 @@ class PDFGenerator:
             justify-content: center;
             align-items: center;
             height: 100px;
+            text-align: center;
         }}
         
         .partner-banner {{
             max-width: 90%;
             max-height: 80px;
             height: auto;
+            display: block;
+            margin: 0 auto;
         }}
         
         /* CONTENT PAGES */
@@ -213,12 +216,12 @@ class WordDocumentGenerator:
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE BACKGROUND - Fill 90% of page (~25 paragraphs)
-        for _ in range(9):
+        # BLUE BACKGROUND - Fill 90% of page
+        for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # TITLE - Centered vertically and horizontally
+        # TITLE - Centered
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -228,7 +231,7 @@ class WordDocumentGenerator:
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Spacing between title and topic
+        # Spacing
         for _ in range(2):
             para = doc.add_paragraph()
             self._add_blue_background(para)
@@ -248,7 +251,7 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo at bottom (10% of page)
+        # WHITE FOOTER - Logo centered
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -260,7 +263,7 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # Content section with 0.72" margins
+        # Content section
         doc.add_page_break()
         new_section = doc.add_section()
         new_section.top_margin = Inches(0.72)
@@ -268,12 +271,11 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(0.72)
         new_section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES - Calibri 16pt, justified, 1.5 spacing
+        # CONTENT PAGES
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -284,7 +286,6 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
-            # Answer header
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -295,7 +296,6 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
-            # Answer text
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
