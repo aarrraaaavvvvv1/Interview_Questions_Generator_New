@@ -225,7 +225,7 @@ class WordDocumentGenerator:
         
         # BLUE COVER PAGE - maximize blue, minimize white footer
         # Top blue padding
-        for _ in range(6):
+        for _ in range(9):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
