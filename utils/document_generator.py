@@ -1,4 +1,4 @@
-"""Document generators with proper PDF margins matching sample"""
+"""Document generators with centered logo"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -26,7 +26,9 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             <h2 class="cover-topic">{topic}</h2>
         </div>
         <div class="cover-footer">
-            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            <div class="logo-container">
+                <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            </div>
         </div>
     </div>
     """
@@ -56,6 +58,12 @@ class PDFGenerator:
         @page content {{
             size: A4;
             margin: 25mm 25mm 25mm 25mm;
+        }}
+        
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }}
         
         body {{
@@ -111,12 +119,23 @@ class PDFGenerator:
             justify-content: center;
             align-items: center;
             min-height: 160px;
+            width: 100%;
+        }}
+        
+        .logo-container {{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            text-align: center;
         }}
         
         .partner-banner {{
             max-width: 80%;
             max-height: 100px;
             height: auto;
+            display: block;
+            margin: 0 auto;
         }}
         
         /* Content pages styling */
@@ -190,7 +209,7 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # Set margins - 1 inch all sides
+        # Set margins
         section = doc.sections[0]
         section.top_margin = Inches(1.0)
         section.bottom_margin = Inches(1.0)
@@ -223,14 +242,15 @@ class WordDocumentGenerator:
         for _ in range(6):
             doc.add_paragraph()
         
-        # Logo
+        # Logo - CENTER ALIGNED
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         if os.path.exists(logo_path):
             try:
-                logo_para.add_run().add_picture(logo_path, width=Inches(5.0))
+                run = logo_para.add_run()
+                run.add_picture(logo_path, width=Inches(5.0))
             except:
                 pass
         
@@ -241,7 +261,7 @@ class WordDocumentGenerator:
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header
+            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -249,7 +269,6 @@ class WordDocumentGenerator:
             q_run.font.size = Pt(11)
             q_run.font.bold = True
             
-            # Empty line
             doc.add_paragraph()
             
             # Answer header
@@ -260,7 +279,6 @@ class WordDocumentGenerator:
             ans_header_run.font.size = Pt(11)
             ans_header_run.font.bold = True
             
-            # Empty line
             doc.add_paragraph()
             
             # Answer text
@@ -271,7 +289,6 @@ class WordDocumentGenerator:
             ans_run.font.size = Pt(11)
             ans_para.paragraph_format.line_spacing = 1.5
             
-            # Empty line between questions
             doc.add_paragraph()
         
         buffer = BytesIO()
