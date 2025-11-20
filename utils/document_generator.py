@@ -1,4 +1,4 @@
-"""Document generators - Logo fits perfectly at bottom with exact calculations"""
+"""Document generators - Centered text, logo at bottom matching reference"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -24,8 +24,10 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
     return f"""
     <div class="cover-page">
         <div class="cover-main">
-            <h1 class="cover-title">{title}</h1>
-            <h2 class="cover-topic">{topic}</h2>
+            <div class="cover-content">
+                <h1 class="cover-title">{title}</h1>
+                <h2 class="cover-topic">{topic}</h2>
+            </div>
         </div>
         <div class="cover-footer">
             <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
@@ -73,6 +75,7 @@ class PDFGenerator:
             color: #000000;
         }}
         
+        /* COVER PAGE */
         .cover-page {{
             page: cover;
             height: 297mm;
@@ -86,49 +89,47 @@ class PDFGenerator:
             flex: 1;
             background-color: #3030ff;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: #FFFFFF;
-            font-family: Calibri, sans-serif;
+            padding: 40px;
+        }}
+        
+        .cover-content {{
             text-align: center;
-            padding: 80px 40px;
         }}
         
         .cover-title {{
-            font-size: 24pt;
-            margin: 0 0 40px 0;
+            font-size: 48pt;
             font-weight: bold;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
+            margin-bottom: 30px;
         }}
         
         .cover-topic {{
-            font-size: 24pt;
-            margin: 40px 0 0 0;
-            font-weight: bold;
+            font-size: 28pt;
+            font-weight: normal;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
+            margin-top: 30px;
         }}
         
         .cover-footer {{
             background-color: #FFFFFF;
-            padding: 15px 20px;
+            padding: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: auto;
-            width: 100%;
+            height: 100px;
         }}
         
         .partner-banner {{
-            width: 100%;
-            max-width: 800px;
+            max-width: 90%;
+            max-height: 80px;
             height: auto;
-            display: block;
-            margin: 0 auto;
         }}
         
+        /* CONTENT PAGES */
         .content-page {{
             page: content;
         }}
@@ -205,54 +206,49 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # First section - cover page
+        # Cover page section - zero margins
         section = doc.sections[0]
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # Calculate: A4 page = 11.69 inches height
-        # Logo image aspect ratio: approximately 6:1 (wide banner)
-        # Logo width will be 7.5 inches, so height ≈ 1.25 inches
-        # Blue area = 11.69 - 1.25 = 10.44 inches
-        # We need approximately 25 lines of blue paragraphs
-        
-        # BLUE COVER PAGE
-        for _ in range(5):
+        # BLUE BACKGROUND - Fill 90% of page (~25 paragraphs)
+        for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # Title - White Calibri 24pt bold on blue
+        # TITLE - Centered vertically and horizontally
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(24)
+        title_run.font.size = Pt(48)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         
+        # Spacing between title and topic
         for _ in range(2):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # Topic - White Calibri 24pt bold on blue
+        # TOPIC - Centered
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(24)
-        topic_run.font.bold = True
+        topic_run.font.size = Pt(28)
+        topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Fill remaining blue space - 25 paragraphs total to push logo to bottom
-        for _ in range(25):
+        # Fill rest with blue
+        for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - logo at bottom (banner logo fits in ~1.25 inches)
+        # WHITE FOOTER - Logo at bottom (10% of page)
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -260,12 +256,11 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                # Banner logo - wider but shorter, use 7.5 inch width
-                run.add_picture(logo_path, width=Inches(7.5))
-            except Exception as e:
-                print(f"Logo error: {e}")
+                run.add_picture(logo_path, width=Inches(6.0))
+            except:
+                pass
         
-        # Content pages with 0.72" margins
+        # Content section with 0.72" margins
         doc.add_page_break()
         new_section = doc.add_section()
         new_section.top_margin = Inches(0.72)
@@ -278,6 +273,7 @@ class WordDocumentGenerator:
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
+            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -288,6 +284,7 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
+            # Answer header
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
@@ -298,6 +295,7 @@ class WordDocumentGenerator:
             
             doc.add_paragraph()
             
+            # Answer text
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
