@@ -225,7 +225,7 @@ class WordDocumentGenerator:
         
         # BLUE COVER PAGE - maximize blue, minimize white footer
         # Top blue padding
-        for _ in range(7):
+        for _ in range(6):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -274,10 +274,10 @@ class WordDocumentGenerator:
         # New section for content with narrower margins
         doc.add_page_break()
         new_section = doc.add_section()
-        new_section.top_margin = Inches(0.75)
-        new_section.bottom_margin = Inches(0.75)
-        new_section.left_margin = Inches(0.75)
-        new_section.right_margin = Inches(0.75)
+        new_section.top_margin = Inches(0.72)
+        new_section.bottom_margin = Inches(0.72)
+        new_section.left_margin = Inches(0.72)
+        new_section.right_margin = Inches(0.72)
         
         # CONTENT PAGES - Calibri 16pt, justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
