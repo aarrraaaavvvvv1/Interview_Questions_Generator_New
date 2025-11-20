@@ -3,7 +3,6 @@ from datetime import datetime
 import sys
 import os
 import base64
-import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -42,286 +41,135 @@ if 'last_params' not in st.session_state:
 if 'partner_institute' not in st.session_state:
     st.session_state.partner_institute = "IIT Kanpur"
 
-# Sidebar - API Configuration
+# Sidebar
 st.sidebar.title("🔑 API Keys")
-st.sidebar.markdown("Enter your API keys")
-
-gemini_api_key = st.sidebar.text_input(
-    "Gemini API Key",
-    type="password",
-    placeholder="Enter Gemini API key",
-    help="Get from: https://aistudio.google.com/app/apikey"
-)
-
-firecrawl_api_key = st.sidebar.text_input(
-    "FireCrawl API Key",
-    type="password",
-    placeholder="Enter FireCrawl API key",
-    help="Get from: https://www.firecrawl.dev"
-)
+gemini_api_key = st.sidebar.text_input("Gemini API Key", type="password")
+firecrawl_api_key = st.sidebar.text_input("FireCrawl API Key", type="password")
 
 # Main content
 st.title("📋 Interview Questions Generator")
-st.markdown("Generate professional interview questions from curriculum content")
 
-# Create tabs
+# Tabs
 tab1, tab2, tab3 = st.tabs(["📝 Generate", "📚 Review", "📥 Export"])
 
-# Tab 1: Generate Questions
+# Tab 1: Generate
 with tab1:
     st.header("Generate Questions")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        topic = st.text_input(
-            "Topic Name",
-            placeholder="e.g., Machine Learning Algorithms",
-            help="Main topic for question generation"
-        )
-        
-        num_questions = st.slider(
-            "Number of Questions",
-            min_value=MIN_QUESTIONS,
-            max_value=MAX_QUESTIONS,
-            value=10,
-            step=1,
-            help="Total questions to generate"
-        )
+        topic = st.text_input("Topic Name")
+        num_questions = st.slider("Number of Questions", MIN_QUESTIONS, MAX_QUESTIONS, 10)
     
     with col2:
-        difficulty = st.selectbox(
-            "Difficulty Level",
-            DIFFICULTY_LEVELS,
-            help="Question complexity level"
-        )
-        
-        practical_percentage = st.slider(
-            "Practical Questions %",
-            min_value=MIN_PRACTICAL_PERCENTAGE,
-            max_value=MAX_PRACTICAL_PERCENTAGE,
-            value=60,
-            step=5,
-            help="Percentage of practical/business-based questions (rest will be generic)"
-        )
+        difficulty = st.selectbox("Difficulty Level", DIFFICULTY_LEVELS)
+        practical_percentage = st.slider("Practical Questions %", MIN_PRACTICAL_PERCENTAGE, MAX_PRACTICAL_PERCENTAGE, 60, 5)
     
-    # Partner Institute Selection
-    partner_institute = st.selectbox(
-        "Partner Institute",
-        ["IIT Kanpur", "IIT Guwahati"],
-        help="Select the partner institution for branding"
-    )
+    partner_institute = st.selectbox("Partner Institute", ["IIT Kanpur", "IIT Guwahati"])
     st.session_state.partner_institute = partner_institute
     
     st.markdown("---")
-    
-    curriculum_context = st.text_area(
-        "Curriculum Content",
-        placeholder="Paste the curriculum/course content here...\n\nExample:\nClassical algorithms: linear regression, logistic regression, decision trees.\nEnsembles & boosting: random forest, XGBoost.\nModel evaluation: confusion matrix, ROC/AUC, precision/recall.",
-        height=150,
-        help="Detailed curriculum content for question generation"
-    )
-    
+    curriculum_context = st.text_area("Curriculum Content", height=150)
     st.markdown("---")
     
-    # Check if parameters changed
     current_params = {
-        'topic': topic,
-        'num_questions': num_questions,
-        'practical_percentage': practical_percentage,
-        'difficulty': difficulty,
-        'curriculum': curriculum_context,
-        'partner': partner_institute
+        'topic': topic, 'num_questions': num_questions, 'practical_percentage': practical_percentage,
+        'difficulty': difficulty, 'curriculum': curriculum_context, 'partner': partner_institute
     }
     
-    # Auto-clear cache if any parameter changed
-    if st.session_state.last_params is not None:
-        if current_params != st.session_state.last_params:
-            st.session_state.qa_pairs = None
-            st.session_state.generated_topic = None
-            st.session_state.pdf_bytes = None
-            st.session_state.word_bytes = None
+    if st.session_state.last_params is not None and current_params != st.session_state.last_params:
+        st.session_state.qa_pairs = None
+        st.session_state.pdf_bytes = None
+        st.session_state.word_bytes = None
     
     col1, col2 = st.columns([1, 5])
     
     with col1:
-        generate_btn = st.button(
-            "🚀 Generate",
-            use_container_width=True,
-            type="primary"
-        )
-    
+        generate_btn = st.button("🚀 Generate", use_container_width=True, type="primary")
     with col2:
-        clear_btn = st.button(
-            "🔄 Clear",
-            use_container_width=True
-        )
+        if st.button("🔄 Clear", use_container_width=True):
+            st.session_state.qa_pairs = None
+            st.session_state.pdf_bytes = None
+            st.session_state.word_bytes = None
+            st.session_state.last_params = None
+            st.rerun()
     
-    if clear_btn:
-        st.session_state.qa_pairs = None
-        st.session_state.generated_topic = None
-        st.session_state.pdf_bytes = None
-        st.session_state.word_bytes = None
-        st.session_state.last_params = None
-        st.rerun()
-    
-    # Generation logic
     if generate_btn:
-        # Validation
-        if not gemini_api_key:
-            st.error("❌ Please enter Gemini API key")
-        elif not firecrawl_api_key:
-            st.error("❌ Please enter FireCrawl API key")
+        if not gemini_api_key or not firecrawl_api_key:
+            st.error("❌ Please enter API keys")
         elif not topic or not curriculum_context:
-            st.error("❌ Please fill in Topic and Curriculum Content")
+            st.error("❌ Please fill in Topic and Curriculum")
         else:
-            with st.spinner("⏳ Generating questions..."):
+            with st.spinner("⏳ Generating..."):
                 try:
-                    # Clear old generated documents
                     st.session_state.pdf_bytes = None
                     st.session_state.word_bytes = None
-                    
-                    # Save current parameters
                     st.session_state.last_params = current_params
                     
-                    # Initialize services
                     gemini_service = GeminiService(gemini_api_key)
                     firecrawl_service = FireCrawlService(firecrawl_api_key)
                     
                     web_content = ""
+                    try:
+                        search_results = firecrawl_service.search_and_scrape(f"{topic} latest {difficulty.lower()} 2024")
+                        if search_results:
+                            web_content = "\n\n".join([f"Source: {r['title']}\n{r['content'][:500]}" for r in search_results[:2]])
+                    except:
+                        pass
                     
-                    # Fetch web content for current information
-                    with st.spinner("🔍 Researching topic..."):
-                        try:
-                            search_query = f"{topic} latest {difficulty.lower()} 2024 2025"
-                            search_results = firecrawl_service.search_and_scrape(search_query)
-                            if search_results:
-                                web_content = "\n\n".join([
-                                    f"Source: {r['title']}\n{r['content'][:500]}"
-                                    for r in search_results[:2]
-                                ])
-                        except Exception as e:
-                            st.warning(f"Could not fetch web content: {str(e)}")
+                    prompt = get_question_generation_prompt(topic, curriculum_context, num_questions, practical_percentage, difficulty, web_content)
                     
-                    # Generate prompt with exact distribution
-                    prompt = get_question_generation_prompt(
-                        topic, 
-                        curriculum_context, 
-                        num_questions,
-                        practical_percentage, 
-                        difficulty,
-                        web_content
-                    )
-                    
-                    # Generate questions with retry logic
                     max_retries = 3
-                    retry_count = 0
                     qa_pairs = []
+                    for attempt in range(max_retries):
+                        if attempt > 0:
+                            st.info(f"🔄 Retry {attempt}/{max_retries-1}...")
+                        response = gemini_service.generate_questions(prompt)
+                        qa_pairs = gemini_service.parse_qa_pairs(response, num_questions)
+                        if len(qa_pairs) == num_questions:
+                            break
                     
-                    while retry_count < max_retries and len(qa_pairs) != num_questions:
-                        if retry_count > 0:
-                            st.info(f"🔄 Retry attempt {retry_count}/{max_retries-1}...")
-                        
-                        with st.spinner(f"🤖 Generating questions (attempt {retry_count + 1})..."):
-                            response = gemini_service.generate_questions(prompt)
-                            qa_pairs = gemini_service.parse_qa_pairs(response, expected_count=num_questions)
-                        
-                        retry_count += 1
-                    
-                    if not qa_pairs:
-                        st.error("❌ No questions generated. Try again.")
-                    elif len(qa_pairs) != num_questions:
-                        st.error(f"❌ Generated {len(qa_pairs)} questions but requested {num_questions}. Please try again.")
-                    else:
-                        # Verify distribution
-                        practical_count = sum(1 for q in qa_pairs if q.get('type') == 'practical')
-                        generic_count = len(qa_pairs) - practical_count
-                        
+                    if len(qa_pairs) == num_questions:
                         st.session_state.qa_pairs = qa_pairs
                         st.session_state.generated_topic = topic
-                        
-                        st.success(f"✅ Successfully generated exactly {len(qa_pairs)} questions!")
-                        st.info(f"Distribution: {generic_count} generic, {practical_count} practical")
-                    
+                        st.success(f"✅ Generated {len(qa_pairs)} questions!")
+                    else:
+                        st.error(f"❌ Generated {len(qa_pairs)} but requested {num_questions}")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
 
-# Tab 2: Review Questions
+# Tab 2: Review
 with tab2:
-    st.header("Review & Edit Questions")
-    
+    st.header("Review & Edit")
     if st.session_state.qa_pairs is None:
         st.info("💡 Generate questions first")
     else:
-        st.success(f"✅ {len(st.session_state.qa_pairs)} questions for: {st.session_state.generated_topic}")
-        
         for i, qa in enumerate(st.session_state.qa_pairs, 1):
-            qa_type = qa.get('type', 'generic').upper()
-            with st.expander(f"Q{i}: {qa['question'][:60]}... [{qa_type}]"):
-                col1, col2 = st.columns([1, 4])
-                
-                with col1:
-                    st.caption(f"Type: {qa_type}")
-                
-                with col2:
-                    st.caption(f"ID: {qa['id']}")
-                
-                st.markdown("**Question**")
-                edited_q = st.text_area(
-                    "Edit:",
-                    value=qa['question'],
-                    height=80,
-                    key=f"q_{i}",
-                    label_visibility="collapsed"
-                )
-                
-                st.markdown("**Answer**")
-                edited_a = st.text_area(
-                    "Edit:",
-                    value=qa['answer'],
-                    height=120,
-                    key=f"a_{i}",
-                    label_visibility="collapsed"
-                )
-                
+            with st.expander(f"Q{i}: {qa['question'][:60]}..."):
+                edited_q = st.text_area("Question", qa['question'], height=80, key=f"q_{i}")
+                edited_a = st.text_area("Answer", qa['answer'], height=120, key=f"a_{i}")
                 if edited_q != qa['question'] or edited_a != qa['answer']:
                     st.session_state.qa_pairs[i-1]['question'] = edited_q
                     st.session_state.qa_pairs[i-1]['answer'] = edited_a
                     st.session_state.pdf_bytes = None
                     st.session_state.word_bytes = None
-                    st.success("✅ Updated")
 
 # Tab 3: Export
 with tab3:
-    st.header("Export Questions")
-    
+    st.header("Export")
     if st.session_state.qa_pairs is None:
         st.info("💡 Generate questions first")
     else:
-        st.success(f"✅ Ready to export {len(st.session_state.qa_pairs)} questions")
-        
-        export_format = st.selectbox(
-            "Export Format",
-            ["PDF", "Word Document"],
-            help="Choose export format"
-        )
+        export_format = st.selectbox("Export Format", ["PDF", "Word Document"])
         
         if export_format == "PDF":
-            st.markdown("### PDF Export")
-            pdf_title = st.text_input(
-                "Document Title",
-                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic),
-                key="pdf_title_input"
-            )
+            pdf_title = st.text_input("Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="pdf_title")
             
-            if st.button("🔄 Generate PDF", use_container_width=True, key="gen_pdf_btn"):
+            if st.button("🔄 Generate PDF", use_container_width=True):
                 try:
                     with st.spinner("Generating PDF..."):
-                        pdf_gen = PDFGenerator(
-                            pdf_title,
-                            st.session_state.generated_topic,
-                            partner_institute=st.session_state.get('partner_institute', 'IIT Kanpur')
-                        )
+                        pdf_gen = PDFGenerator(pdf_title, st.session_state.generated_topic, st.session_state.partner_institute)
                         st.session_state.pdf_bytes = pdf_gen.generate(st.session_state.qa_pairs)
                         st.success("✅ PDF generated!")
                 except Exception as e:
@@ -329,58 +177,26 @@ with tab3:
             
             if st.session_state.pdf_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                st.download_button(
-                    label="📥 Download PDF",
-                    data=st.session_state.pdf_bytes,
-                    file_name=f"{pdf_title}_{timestamp}.pdf",
-                    mime="application/pdf",
-                    key="download_pdf_btn"
-                )
+                st.download_button("📥 Download PDF", st.session_state.pdf_bytes, f"{pdf_title}_{timestamp}.pdf", "application/pdf")
                 
-                # PDF PREVIEW - Fixed method
+                # PDF PREVIEW
                 st.markdown("### 📄 PDF Preview")
-                st.markdown("*Download the PDF if preview doesn't appear in your browser.*")
-                
-                # Alternative preview button
-                st.download_button(
-                    label="📱 Open PDF in New Tab",
-                    data=st.session_state.pdf_bytes,
-                    file_name=f"preview_{pdf_title}.pdf",
-                    mime="application/pdf",
-                    key="preview_pdf_btn",
-                    help="Click to open PDF in a new tab for preview"
-                )
+                base64_pdf = base64.b64encode(st.session_state.pdf_bytes).decode('utf-8')
+                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf">'
+                st.markdown(pdf_display, unsafe_allow_html=True)
         
-        elif export_format == "Word Document":
-            st.markdown("### Word Document Export")
-            doc_title = st.text_input(
-                "Document Title",
-                value=DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic),
-                key="word_title_input"
-            )
+        else:
+            doc_title = st.text_input("Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="doc_title")
             
-            if st.button("🔄 Generate Word Document", use_container_width=True, key="gen_word_btn"):
+            if st.button("🔄 Generate Word", use_container_width=True):
                 try:
-                    with st.spinner("Generating Word document..."):
+                    with st.spinner("Generating Word..."):
                         word_gen = WordDocumentGenerator()
-                        st.session_state.word_bytes = word_gen.generate(
-                            st.session_state.qa_pairs,
-                            doc_title,
-                            st.session_state.generated_topic,
-                            partner_institute=st.session_state.get('partner_institute', 'IIT Kanpur')
-                        )
-                        st.success("✅ Word document generated!")
+                        st.session_state.word_bytes = word_gen.generate(st.session_state.qa_pairs, doc_title, st.session_state.generated_topic, st.session_state.partner_institute)
+                        st.success("✅ Word generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
             
             if st.session_state.word_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                st.download_button(
-                    label="📥 Download Word Document",
-                    data=st.session_state.word_bytes,
-                    file_name=f"{doc_title}_{timestamp}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="download_word_btn"
-                )
-                
-                st.info("💡 Download the Word document to edit locally in Microsoft Word or Google Docs")
+                st.download_button("📥 Download Word", st.session_state.word_bytes, f"{doc_title}_{timestamp}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
