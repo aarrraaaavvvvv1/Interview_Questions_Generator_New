@@ -222,7 +222,7 @@ class WordDocumentGenerator:
         section.right_margin = Inches(0)
         
         # BLUE BACKGROUND
-        for _ in range(12):
+        for _ in range(9):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
