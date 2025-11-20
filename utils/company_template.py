@@ -1,4 +1,4 @@
-"""Company template styling"""
+"""Company template styling with logo URL"""
 
 import re
 
@@ -10,14 +10,22 @@ COVER_FONT_SIZE = "18pt"
 CONTENT_FONT_SIZE = "18pt"
 LINE_SPACING = 1.5
 
+# Logo URLs (using raw GitHub URLs)
+PARTNER_LOGO_URLS = {
+    "IIT Kanpur": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitk-accredian-banner.jpg%20.png",
+    "IIT Guwahati": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitg-accredian-banner.jpg",
+    "Default": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitk-accredian-banner.jpg%20.png"
+}
+
+# Local paths (for Word documents)
 PARTNER_LOGOS = {
-    "IIT Kanpur": "assets/logos/iitk-accredian-banner.jpg",
+    "IIT Kanpur": "assets/logos/iitk-accredian-banner.jpg .png",
     "IIT Guwahati": "assets/logos/iitg-accredian-banner.jpg",
-    "Default": "assets/logos/iitk-accredian-banner.jpg"
+    "Default": "assets/logos/iitk-accredian-banner.jpg .png"
 }
 
 def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
-    logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
+    logo_url = PARTNER_LOGO_URLS.get(partner_institute, PARTNER_LOGO_URLS["Default"])
     
     return f"""
     <div class="cover-page">
@@ -26,7 +34,7 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             <h2 class="cover-topic">{topic}</h2>
         </div>
         <div class="cover-footer">
-            <img src="{logo_path}" class="partner-banner" alt="{partner_institute}">
+            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}" crossorigin="anonymous">
         </div>
     </div>
     <style>
@@ -45,8 +53,6 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             display: flex;
             flex-direction: column;
             page-break-after: always;
-            margin: 0;
-            padding: 0;
         }}
         .cover-main {{
             flex: 1;
@@ -96,7 +102,7 @@ def get_content_page_styles() -> str:
     <style>
         @page {{
             size: A4;
-            margin: 25mm;
+            margin: 30mm 25mm 30mm 25mm;
         }}
         body {{
             font-family: {CONTENT_FONT} !important;
@@ -107,7 +113,7 @@ def get_content_page_styles() -> str:
             padding: 0;
         }}
         .content-page {{
-            padding: 20px;
+            padding: 0;
         }}
         .question-block {{
             margin: 35px 0;
