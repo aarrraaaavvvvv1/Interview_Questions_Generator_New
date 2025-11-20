@@ -1,23 +1,18 @@
-"""Company template styling with logo URL"""
+"""Company template matching sample document format"""
 
 import re
 
 ROYAL_BLUE = "#3030ff"
 WHITE = "#FFFFFF"
-COVER_FONT = "Arial, sans-serif"
-CONTENT_FONT = "Calibri, sans-serif"
-COVER_FONT_SIZE = "18pt"
-CONTENT_FONT_SIZE = "18pt"
-LINE_SPACING = 1.5
 
-# Logo URLs (using raw GitHub URLs)
+# Logo URLs
 PARTNER_LOGO_URLS = {
     "IIT Kanpur": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitk-accredian-banner.jpg%20.png",
     "IIT Guwahati": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitg-accredian-banner.jpg",
     "Default": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitk-accredian-banner.jpg%20.png"
 }
 
-# Local paths (for Word documents)
+# Local paths (for Word)
 PARTNER_LOGOS = {
     "IIT Kanpur": "assets/logos/iitk-accredian-banner.jpg .png",
     "IIT Guwahati": "assets/logos/iitg-accredian-banner.jpg",
@@ -34,18 +29,13 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             <h2 class="cover-topic">{topic}</h2>
         </div>
         <div class="cover-footer">
-            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}" crossorigin="anonymous">
+            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
         </div>
     </div>
     <style>
         @page {{
             size: A4;
             margin: 0;
-        }}
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
         }}
         .cover-page {{
             height: 297mm;
@@ -56,32 +46,30 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
         }}
         .cover-main {{
             flex: 1;
-            background-color: {ROYAL_BLUE} !important;
+            background-color: {ROYAL_BLUE};
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: {WHITE} !important;
-            font-family: {COVER_FONT};
+            color: {WHITE};
+            font-family: Arial, sans-serif;
             text-align: center;
             padding: 80px 40px;
         }}
         .cover-title {{
-            font-size: {COVER_FONT_SIZE} !important;
-            margin: 0 0 40px 0 !important;
+            font-size: 18pt;
+            margin: 0 0 40px 0;
             font-weight: bold;
-            color: {WHITE} !important;
-            line-height: 1.4;
+            color: {WHITE};
         }}
         .cover-topic {{
-            font-size: {COVER_FONT_SIZE} !important;
-            margin: 40px 0 0 0 !important;
+            font-size: 18pt;
+            margin: 40px 0 0 0;
             font-weight: bold;
-            color: {WHITE} !important;
-            line-height: 1.4;
+            color: {WHITE};
         }}
         .cover-footer {{
-            background-color: {WHITE} !important;
+            background-color: {WHITE};
             padding: 40px 20px;
             display: flex;
             justify-content: center;
@@ -92,82 +80,45 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             max-width: 80%;
             max-height: 100px;
             height: auto;
-            object-fit: contain;
         }}
     </style>
     """
 
 def get_content_page_styles() -> str:
-    return f"""
+    return """
     <style>
-        @page {{
+        @page {
             size: A4;
-            margin: 30mm 25mm 30mm 25mm;
-        }}
-        body {{
-            font-family: {CONTENT_FONT} !important;
-            font-size: {CONTENT_FONT_SIZE} !important;
-            line-height: {LINE_SPACING};
+            margin: 25mm;
+        }
+        body {
+            font-family: Calibri, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
             color: #000000;
-            margin: 0;
-            padding: 0;
-        }}
-        .content-page {{
-            padding: 0;
-        }}
-        .question-block {{
-            margin: 35px 0;
-            page-break-inside: avoid;
-        }}
-        .question-number {{
-            font-size: {CONTENT_FONT_SIZE} !important;
-            font-weight: bold;
-            color: #333333;
-            margin-bottom: 12px;
-            font-family: {CONTENT_FONT} !important;
-        }}
-        .question-text {{
-            font-weight: bold;
-            text-align: justify;
-            margin-bottom: 12px;
-            color: #000000;
-            font-size: {CONTENT_FONT_SIZE} !important;
-            font-family: {CONTENT_FONT} !important;
-            line-height: {LINE_SPACING};
-        }}
-        .answer-text {{
-            text-align: justify;
+        }
+        .question-block {
             margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        .question-header {
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 8px;
             color: #000000;
-            font-size: {CONTENT_FONT_SIZE} !important;
-            font-family: {CONTENT_FONT} !important;
-            line-height: {LINE_SPACING};
-        }}
-        .important {{
-            font-weight: bold !important;
-            color: {ROYAL_BLUE} !important;
-        }}
-        .type-badge {{
-            font-size: 14pt !important;
-            font-style: italic;
-            color: #666666;
-            margin-bottom: 10px;
-            font-family: {CONTENT_FONT} !important;
-        }}
+        }
+        .answer-header {
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #000000;
+        }
+        .answer-text {
+            font-size: 11pt;
+            text-align: justify;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            color: #000000;
+        }
     </style>
     """
-
-def format_answer_with_important_words(answer: str, important_words: list) -> str:
-    if not important_words:
-        return answer
-    
-    formatted = answer
-    important_words_sorted = sorted(important_words, key=len, reverse=True)
-    
-    for word in important_words_sorted:
-        if not word or not isinstance(word, str):
-            continue
-        pattern = re.compile(re.escape(word), re.IGNORECASE)
-        formatted = pattern.sub(f'<span class="important">{word}</span>', formatted)
-    
-    return formatted
