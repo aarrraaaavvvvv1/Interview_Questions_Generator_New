@@ -1,4 +1,4 @@
-"""Document generators - Final: Calibri font, narrower margins, optimized logo space"""
+"""Document generators - Logo at bottom, 16pt content font"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -70,7 +70,7 @@ class PDFGenerator:
             margin: 0;
             padding: 0;
             font-family: Calibri, sans-serif;
-            font-size: 18pt;
+            font-size: 16pt;
             line-height: 1.5;
             color: #000000;
         }}
@@ -115,12 +115,12 @@ class PDFGenerator:
         
         .cover-footer {{
             background-color: #FFFFFF;
-            padding: 30px 20px;
+            padding: 25px 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 140px;
-            max-height: 140px;
+            min-height: 120px;
+            max-height: 120px;
             width: 100%;
         }}
         
@@ -134,7 +134,7 @@ class PDFGenerator:
         
         .partner-banner {{
             max-width: 70%;
-            max-height: 80px;
+            max-height: 70px;
             height: auto;
             display: block;
             margin: 0 auto;
@@ -150,7 +150,7 @@ class PDFGenerator:
         }}
         
         .question-header {{
-            font-size: 18pt;
+            font-size: 16pt;
             font-weight: bold;
             margin-bottom: 10px;
             color: #000000;
@@ -158,7 +158,7 @@ class PDFGenerator:
         }}
         
         .answer-header {{
-            font-size: 18pt;
+            font-size: 16pt;
             font-weight: bold;
             margin-bottom: 10px;
             margin-top: 10px;
@@ -167,7 +167,7 @@ class PDFGenerator:
         }}
         
         .answer-text {{
-            font-size: 18pt;
+            font-size: 16pt;
             text-align: justify;
             line-height: 1.5;
             margin-bottom: 15px;
@@ -223,9 +223,9 @@ class WordDocumentGenerator:
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE COVER PAGE
+        # BLUE COVER PAGE - maximize blue, minimize white footer
         # Top blue padding
-        for _ in range(8):
+        for _ in range(6):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -254,12 +254,12 @@ class WordDocumentGenerator:
         topic_run.font.bold = True
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # Blue spacing - fill rest of page except logo area
-        for _ in range(10):
+        # MAXIMIZE BLUE - fill page until logo area
+        for _ in range(18):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - minimal space for logo only
+        # WHITE FOOTER - logo at very bottom, minimal space
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -271,9 +271,6 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # Small spacing after logo
-        doc.add_paragraph()
-        
         # New section for content with narrower margins
         doc.add_page_break()
         new_section = doc.add_section()
@@ -282,39 +279,39 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(0.75)
         new_section.right_margin = Inches(0.75)
         
-        # CONTENT PAGES - Calibri 18pt, justified, 1.5 spacing
+        # CONTENT PAGES - Calibri 16pt, justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header - Calibri 18pt bold
+            # Question header - Calibri 16pt bold
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(18)
+            q_run.font.size = Pt(16)
             q_run.font.bold = True
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
             
-            # Answer header - Calibri 18pt bold
+            # Answer header - Calibri 16pt bold
             ans_header_para = doc.add_paragraph()
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(18)
+            ans_header_run.font.size = Pt(16)
             ans_header_run.font.bold = True
             ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
             
-            # Answer text - Calibri 18pt, justified, 1.5 spacing
+            # Answer text - Calibri 16pt, justified, 1.5 spacing
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(18)
+            ans_run.font.size = Pt(16)
             ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
