@@ -2,7 +2,6 @@ import streamlit as st
 from datetime import datetime
 import sys
 import os
-import base64
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -43,8 +42,8 @@ if 'partner_institute' not in st.session_state:
 
 # Sidebar
 st.sidebar.title("🔑 API Keys")
-gemini_api_key = st.sidebar.text_input("Gemini API Key", type="password")
-firecrawl_api_key = st.sidebar.text_input("FireCrawl API Key", type="password")
+gemini_api_key = st.sidebar.text_input("Gemini API Key", type="password", placeholder="Enter Gemini API key")
+firecrawl_api_key = st.sidebar.text_input("FireCrawl API Key", type="password", placeholder="Enter FireCrawl API key")
 
 # Main content
 st.title("📋 Interview Questions Generator")
@@ -59,8 +58,8 @@ with tab1:
     col1, col2 = st.columns(2)
     
     with col1:
-        topic = st.text_input("Topic Name")
-        num_questions = st.slider("Number of Questions", MIN_QUESTIONS, MAX_QUESTIONS, 10)
+        topic = st.text_input("Topic Name", placeholder="e.g., Machine Learning Algorithms")
+        num_questions = st.slider("Number of Questions", MIN_QUESTIONS, MAX_QUESTIONS, 10, 1)
     
     with col2:
         difficulty = st.selectbox("Difficulty Level", DIFFICULTY_LEVELS)
@@ -70,7 +69,7 @@ with tab1:
     st.session_state.partner_institute = partner_institute
     
     st.markdown("---")
-    curriculum_context = st.text_area("Curriculum Content", height=150)
+    curriculum_context = st.text_area("Curriculum Content", height=150, placeholder="Paste curriculum content here...")
     st.markdown("---")
     
     current_params = {
@@ -101,7 +100,7 @@ with tab1:
         elif not topic or not curriculum_context:
             st.error("❌ Please fill in Topic and Curriculum")
         else:
-            with st.spinner("⏳ Generating..."):
+            with st.spinner("⏳ Generating questions..."):
                 try:
                     st.session_state.pdf_bytes = None
                     st.session_state.word_bytes = None
@@ -133,7 +132,10 @@ with tab1:
                     if len(qa_pairs) == num_questions:
                         st.session_state.qa_pairs = qa_pairs
                         st.session_state.generated_topic = topic
+                        practical_count = sum(1 for q in qa_pairs if q.get('type') == 'practical')
+                        generic_count = len(qa_pairs) - practical_count
                         st.success(f"✅ Generated {len(qa_pairs)} questions!")
+                        st.info(f"Distribution: {generic_count} generic, {practical_count} practical")
                     else:
                         st.error(f"❌ Generated {len(qa_pairs)} but requested {num_questions}")
                 except Exception as e:
@@ -141,12 +143,14 @@ with tab1:
 
 # Tab 2: Review
 with tab2:
-    st.header("Review & Edit")
+    st.header("Review & Edit Questions")
     if st.session_state.qa_pairs is None:
         st.info("💡 Generate questions first")
     else:
+        st.success(f"✅ {len(st.session_state.qa_pairs)} questions for: {st.session_state.generated_topic}")
         for i, qa in enumerate(st.session_state.qa_pairs, 1):
-            with st.expander(f"Q{i}: {qa['question'][:60]}..."):
+            qa_type = qa.get('type', 'generic').upper()
+            with st.expander(f"Q{i}: {qa['question'][:60]}... [{qa_type}]"):
                 edited_q = st.text_area("Question", qa['question'], height=80, key=f"q_{i}")
                 edited_a = st.text_area("Answer", qa['answer'], height=120, key=f"a_{i}")
                 if edited_q != qa['question'] or edited_a != qa['answer']:
@@ -154,19 +158,23 @@ with tab2:
                     st.session_state.qa_pairs[i-1]['answer'] = edited_a
                     st.session_state.pdf_bytes = None
                     st.session_state.word_bytes = None
+                    st.success("✅ Updated")
 
 # Tab 3: Export
 with tab3:
-    st.header("Export")
+    st.header("Export Questions")
     if st.session_state.qa_pairs is None:
         st.info("💡 Generate questions first")
     else:
+        st.success(f"✅ Ready to export {len(st.session_state.qa_pairs)} questions")
+        
         export_format = st.selectbox("Export Format", ["PDF", "Word Document"])
         
         if export_format == "PDF":
-            pdf_title = st.text_input("Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="pdf_title")
+            st.markdown("### PDF Export")
+            pdf_title = st.text_input("Document Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="pdf_title")
             
-            if st.button("🔄 Generate PDF", use_container_width=True):
+            if st.button("🔄 Generate PDF", use_container_width=True, key="gen_pdf_btn"):
                 try:
                     with st.spinner("Generating PDF..."):
                         pdf_gen = PDFGenerator(pdf_title, st.session_state.generated_topic, st.session_state.partner_institute)
@@ -177,26 +185,34 @@ with tab3:
             
             if st.session_state.pdf_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                st.download_button("📥 Download PDF", st.session_state.pdf_bytes, f"{pdf_title}_{timestamp}.pdf", "application/pdf")
-                
-                # PDF PREVIEW
-                st.markdown("### 📄 PDF Preview")
-                base64_pdf = base64.b64encode(st.session_state.pdf_bytes).decode('utf-8')
-                pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf">'
-                st.markdown(pdf_display, unsafe_allow_html=True)
+                st.download_button(
+                    label="📥 Download PDF",
+                    data=st.session_state.pdf_bytes,
+                    file_name=f"{pdf_title}_{timestamp}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_btn"
+                )
         
         else:
-            doc_title = st.text_input("Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="doc_title")
+            st.markdown("### Word Document Export")
+            doc_title = st.text_input("Document Title", DOCUMENT_TITLE_FORMAT.format(topic=st.session_state.generated_topic), key="doc_title")
             
-            if st.button("🔄 Generate Word", use_container_width=True):
+            if st.button("🔄 Generate Word Document", use_container_width=True, key="gen_word_btn"):
                 try:
-                    with st.spinner("Generating Word..."):
+                    with st.spinner("Generating Word document..."):
                         word_gen = WordDocumentGenerator()
                         st.session_state.word_bytes = word_gen.generate(st.session_state.qa_pairs, doc_title, st.session_state.generated_topic, st.session_state.partner_institute)
-                        st.success("✅ Word generated!")
+                        st.success("✅ Word document generated!")
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
             
             if st.session_state.word_bytes:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                st.download_button("📥 Download Word", st.session_state.word_bytes, f"{doc_title}_{timestamp}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                st.download_button(
+                    label="📥 Download Word Document",
+                    data=st.session_state.word_bytes,
+                    file_name=f"{doc_title}_{timestamp}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="download_word_btn"
+                )
+                st.info("💡 Download the Word document to edit locally")
