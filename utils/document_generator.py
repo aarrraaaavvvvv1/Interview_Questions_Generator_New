@@ -1,4 +1,4 @@
-"""Document generators - Questions flow naturally without page breaks"""
+"""Document generators - 14pt font size for content"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -65,7 +65,7 @@ class PDFGenerator:
             margin: 0;
             padding: 0;
             font-family: Calibri, sans-serif;
-            font-size: 16pt;
+            font-size: 14pt;
             line-height: 1.5;
             color: #000000;
         }}
@@ -155,7 +155,7 @@ class PDFGenerator:
         }}
 
         .question-header {{
-            font-size: 16pt;
+            font-size: 14pt;
             font-weight: bold;
             margin-bottom: 10px;
             color: #000000;
@@ -163,7 +163,7 @@ class PDFGenerator:
         }}
 
         .answer-header {{
-            font-size: 16pt;
+            font-size: 14pt;
             font-weight: bold;
             margin-bottom: 10px;
             margin-top: 10px;
@@ -172,7 +172,7 @@ class PDFGenerator:
         }}
 
         .answer-text {{
-            font-size: 16pt;
+            font-size: 14pt;
             text-align: justify;
             line-height: 1.5;
             margin-bottom: 15px;
@@ -273,7 +273,7 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(0.72)
         new_section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES - Questions flow naturally
+        # CONTENT PAGES - 14pt font
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
@@ -282,10 +282,9 @@ class WordDocumentGenerator:
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(16)
+            q_run.font.size = Pt(14)
             q_run.font.bold = True
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            # Don't set keep_with_next or page_break_before
             
             doc.add_paragraph()
             
@@ -293,7 +292,7 @@ class WordDocumentGenerator:
             ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_header_run = ans_header_para.add_run("Answer:")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(16)
+            ans_header_run.font.size = Pt(14)
             ans_header_run.font.bold = True
             ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
@@ -303,7 +302,7 @@ class WordDocumentGenerator:
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(16)
+            ans_run.font.size = Pt(14)
             ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
             doc.add_paragraph()
