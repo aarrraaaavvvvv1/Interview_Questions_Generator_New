@@ -1,4 +1,4 @@
-"""Document generators - exact specifications: 24pt cover, 18pt content, justified 1.5 spacing"""
+"""Document generators - Final: Calibri font, narrower margins, optimized logo space"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -57,7 +57,7 @@ class PDFGenerator:
         
         @page content {{
             size: A4;
-            margin: 25mm 25mm 25mm 25mm;
+            margin: 20mm 20mm 20mm 20mm;
         }}
         
         * {{
@@ -115,11 +115,12 @@ class PDFGenerator:
         
         .cover-footer {{
             background-color: #FFFFFF;
-            padding: 40px 20px;
+            padding: 30px 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 160px;
+            min-height: 140px;
+            max-height: 140px;
             width: 100%;
         }}
         
@@ -132,8 +133,8 @@ class PDFGenerator:
         }}
         
         .partner-banner {{
-            max-width: 80%;
-            max-height: 100px;
+            max-width: 70%;
+            max-height: 80px;
             height: auto;
             display: block;
             margin: 0 auto;
@@ -222,9 +223,9 @@ class WordDocumentGenerator:
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE COVER PAGE - Fill entire page with blue
-        # Calculate lines needed to fill page (approx 60 lines for A4)
-        for _ in range(10):
+        # BLUE COVER PAGE
+        # Top blue padding
+        for _ in range(8):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -239,7 +240,7 @@ class WordDocumentGenerator:
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         
         # Spacing with blue
-        for _ in range(3):
+        for _ in range(2):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -253,20 +254,16 @@ class WordDocumentGenerator:
         topic_run.font.bold = True
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # More blue spacing until footer area
-        for _ in range(8):
+        # Blue spacing - fill rest of page except logo area
+        for _ in range(10):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER AREA with logo
-        for _ in range(2):
-            doc.add_paragraph()
-        
-        # Logo - centered in white footer
-        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
+        # WHITE FOOTER - minimal space for logo only
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
+        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
@@ -274,16 +271,16 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        for _ in range(2):
-            doc.add_paragraph()
+        # Small spacing after logo
+        doc.add_paragraph()
         
-        # New section for content with normal margins
+        # New section for content with narrower margins
         doc.add_page_break()
         new_section = doc.add_section()
-        new_section.top_margin = Inches(1.0)
-        new_section.bottom_margin = Inches(1.0)
-        new_section.left_margin = Inches(1.0)
-        new_section.right_margin = Inches(1.0)
+        new_section.top_margin = Inches(0.75)
+        new_section.bottom_margin = Inches(0.75)
+        new_section.left_margin = Inches(0.75)
+        new_section.right_margin = Inches(0.75)
         
         # CONTENT PAGES - Calibri 18pt, justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
