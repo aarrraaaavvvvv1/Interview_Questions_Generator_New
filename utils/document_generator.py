@@ -1,4 +1,4 @@
-"""Document generators - Logo at bottom, 16pt content font"""
+"""Document generators - Exact margins: 0.72in, footer 0.24in from bottom"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -57,7 +57,7 @@ class PDFGenerator:
         
         @page content {{
             size: A4;
-            margin: 20mm 20mm 20mm 20mm;
+            margin: 18.3mm 18.3mm 18.3mm 18.3mm;
         }}
         
         * {{
@@ -115,12 +115,11 @@ class PDFGenerator:
         
         .cover-footer {{
             background-color: #FFFFFF;
-            padding: 25px 20px;
+            padding: 6.1mm 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 120px;
-            max-height: 120px;
+            height: 6.1mm;
             width: 100%;
         }}
         
@@ -216,14 +215,14 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # First section - cover page with zero margins
+        # First section - cover page with zero margins except bottom 0.24"
         section = doc.sections[0]
         section.top_margin = Inches(0)
-        section.bottom_margin = Inches(0)
+        section.bottom_margin = Inches(0.24)  # Footer 0.24" from bottom
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE COVER PAGE - maximize blue, minimize white footer
+        # BLUE COVER PAGE - fill to footer
         # Top blue padding
         for _ in range(6):
             para = doc.add_paragraph()
@@ -254,12 +253,12 @@ class WordDocumentGenerator:
         topic_run.font.bold = True
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         
-        # MAXIMIZE BLUE - fill page until logo area
-        for _ in range(18):
+        # Fill with blue to push logo to bottom
+        for _ in range(20):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - logo at very bottom, minimal space
+        # WHITE FOOTER - logo at 0.24" from bottom
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
@@ -271,7 +270,7 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # New section for content with narrower margins
+        # New section for content with 0.72" margins
         doc.add_page_break()
         new_section = doc.add_section()
         new_section.top_margin = Inches(0.72)
