@@ -1,4 +1,4 @@
-"""Document generators - 14pt font size for content"""
+"""Document generators - Reduced spacing, answer inline with text"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -106,7 +106,8 @@ class PDFGenerator:
             font-weight: bold;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
-            margin-bottom: 30px;
+            margin-bottom: 5px;
+            margin-top: 0;
         }}
         
         .cover-topic {{
@@ -114,7 +115,8 @@ class PDFGenerator:
             font-weight: normal;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
-            margin-top: 30px;
+            margin-top: 5px;
+            margin-bottom: 0;
         }}
         .cover-footer {{
             height: 13%;
@@ -151,13 +153,13 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 25px;
+            margin-bottom: 15px;
         }}
 
         .question-header {{
             font-size: 14pt;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             color: #000000;
             font-family: Calibri, sans-serif;
         }}
@@ -165,19 +167,19 @@ class PDFGenerator:
         .answer-header {{
             font-size: 14pt;
             font-weight: bold;
-            margin-bottom: 10px;
-            margin-top: 10px;
             color: #000000;
             font-family: Calibri, sans-serif;
+            display: inline;
         }}
 
         .answer-text {{
             font-size: 14pt;
             text-align: justify;
             line-height: 1.5;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             color: #000000;
             font-family: Calibri, sans-serif;
+            display: inline;
         }}
     </style>
 </head>
@@ -191,8 +193,7 @@ class PDFGenerator:
             html_content += f"""
 <div class="question-block">
     <div class="question-header">Question {i}: {question}</div>
-    <div class="answer-header">Answer:</div>
-    <div class="answer-text">{answer}</div>
+    <div class="answer-header">Answer: </div><div class="answer-text">{answer}</div>
 </div>
 """
         html_content += """
@@ -222,7 +223,7 @@ class WordDocumentGenerator:
         section.right_margin = Inches(0)
         
         # BLUE BACKGROUND
-        for _ in range(8):
+        for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -235,12 +236,10 @@ class WordDocumentGenerator:
         title_run.font.size = Pt(48)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
+        title_para.paragraph_format.space_after = Pt(0)
+        title_para.paragraph_format.space_before = Pt(0)
         
-        for _ in range(2):
-            para = doc.add_paragraph()
-            self._add_blue_background(para)
-        
-        # TOPIC - Centered
+        # TOPIC - Centered (NO SPACING)
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -249,6 +248,8 @@ class WordDocumentGenerator:
         topic_run.font.size = Pt(28)
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
+        topic_para.paragraph_format.space_after = Pt(0)
+        topic_para.paragraph_format.space_before = Pt(0)
         
         for _ in range(12):
             para = doc.add_paragraph()
@@ -273,11 +274,12 @@ class WordDocumentGenerator:
         new_section.left_margin = Inches(0.72)
         new_section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES - 14pt font
+        # CONTENT PAGES - Answer inline with text
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
+            # Question header
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -285,27 +287,26 @@ class WordDocumentGenerator:
             q_run.font.size = Pt(14)
             q_run.font.bold = True
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            q_para.paragraph_format.space_after = Pt(6)
             
-            doc.add_paragraph()
+            # Answer - inline: "Answer:" + answer text on same line
+            ans_para = doc.add_paragraph()
+            ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
-            ans_header_para = doc.add_paragraph()
-            ans_header_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            ans_header_run = ans_header_para.add_run("Answer:")
+            # Add "Answer:" in bold
+            ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
             ans_header_run.font.size = Pt(14)
             ans_header_run.font.bold = True
-            ans_header_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             
-            doc.add_paragraph()
-            
-            ans_para = doc.add_paragraph()
-            ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            # Add answer text immediately after
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
             ans_run.font.size = Pt(14)
-            ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            ans_run.font.bold = False
             
-            doc.add_paragraph()
+            ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            ans_para.paragraph_format.space_after = Pt(10)
         
         buffer = BytesIO()
         doc.save(buffer)
