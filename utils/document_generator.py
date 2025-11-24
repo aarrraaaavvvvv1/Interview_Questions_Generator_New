@@ -1,4 +1,4 @@
-"""Document generators - No blank page, justified text, 1.5 spacing"""
+"""Document generators - No blank page, properly justified content"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -220,7 +220,8 @@ class WordDocumentGenerator:
     
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
-        # Cover page section (no margins)
+        
+        # === COVER PAGE (Section 1) ===
         section = doc.sections[0]
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
@@ -232,7 +233,7 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # TITLE - 27pt Calibri
+        # TITLE
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -245,7 +246,7 @@ class WordDocumentGenerator:
         title_para.paragraph_format.space_before = Pt(0)
         title_para.paragraph_format.line_spacing = 1.0
         
-        # TOPIC - 27pt Calibri (immediately after title, no gap)
+        # TOPIC
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -258,12 +259,12 @@ class WordDocumentGenerator:
         topic_para.paragraph_format.space_before = Pt(0)
         topic_para.paragraph_format.line_spacing = 1.0
         
-        # BLUE BACKGROUND - rest of page
+        # Fill rest with blue
         for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo at original size
+        # WHITE FOOTER - Logo
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
@@ -274,19 +275,32 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # Content section - NO PAGE BREAK, just update margins of existing section
-        section = doc.sections[0]
-        section.top_margin = Inches(0.72)
-        section.bottom_margin = Inches(0.72)
-        section.left_margin = Inches(0.72)
-        section.right_margin = Inches(0.72)
+        # === PAGE BREAK - insert section break for content pages ===
+        # Use continuous section break to avoid blank page
+        last_paragraph = doc.paragraphs[-1]
+        pPr = last_paragraph._element.get_or_add_pPr()
+        sectPr = pPr.find(qn('w:sectPr'))
+        if sectPr is None:
+            sectPr = OxmlElement('w:sectPr')
+            pPr.append(sectPr)
         
-        # CONTENT PAGES - Justified, 1.5 spacing
+        # Add page break
+        doc.add_page_break()
+        
+        # === CONTENT PAGES (Section 2) ===
+        # Get new section and set margins
+        new_section = doc.sections[-1]
+        new_section.top_margin = Inches(0.72)
+        new_section.bottom_margin = Inches(0.72)
+        new_section.left_margin = Inches(0.72)
+        new_section.right_margin = Inches(0.72)
+        
+        # CONTENT - Justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header - Justified, 1.5 spacing
+            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -296,17 +310,15 @@ class WordDocumentGenerator:
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             q_para.paragraph_format.space_after = Pt(6)
             
-            # Answer - Justified, 1.5 spacing, inline
+            # Answer - inline
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
-            # Add "Answer:" in bold
             ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
             ans_header_run.font.size = Pt(14)
             ans_header_run.font.bold = True
             
-            # Add answer text immediately after
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
             ans_run.font.size = Pt(14)
