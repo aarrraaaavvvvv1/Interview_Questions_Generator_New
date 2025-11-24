@@ -1,4 +1,4 @@
-"""Document generators - 27pt title/topic on front page"""
+"""Document generators - No blank page, justified text, 1.5 spacing"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -165,6 +165,7 @@ class PDFGenerator:
             margin-bottom: 5px;
             color: #000000;
             font-family: Calibri, sans-serif;
+            text-align: justify;
         }}
 
         .answer-header {{
@@ -173,6 +174,7 @@ class PDFGenerator:
             color: #000000;
             font-family: Calibri, sans-serif;
             display: inline;
+            text-align: justify;
         }}
 
         .answer-text {{
@@ -272,20 +274,19 @@ class WordDocumentGenerator:
             except:
                 pass
         
-        # Content section
-        doc.add_page_break()
-        new_section = doc.add_section()
-        new_section.top_margin = Inches(0.72)
-        new_section.bottom_margin = Inches(0.72)
-        new_section.left_margin = Inches(0.72)
-        new_section.right_margin = Inches(0.72)
+        # Content section - NO PAGE BREAK, just update margins of existing section
+        section = doc.sections[0]
+        section.top_margin = Inches(0.72)
+        section.bottom_margin = Inches(0.72)
+        section.left_margin = Inches(0.72)
+        section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES - Answer inline with text
+        # CONTENT PAGES - Justified, 1.5 spacing
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header
+            # Question header - Justified, 1.5 spacing
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -295,7 +296,7 @@ class WordDocumentGenerator:
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             q_para.paragraph_format.space_after = Pt(6)
             
-            # Answer - inline: "Answer:" + answer text on same line
+            # Answer - Justified, 1.5 spacing, inline
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
