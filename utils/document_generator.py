@@ -1,4 +1,4 @@
-"""Document generators - 24pt title/topic, tight spacing, no blank lines"""
+"""Document generators - 27pt title/topic on front page"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -103,7 +103,7 @@ class PDFGenerator:
             gap: 0;
         }}
         .cover-title {{
-            font-size: 24pt;
+            font-size: 27pt;
             font-weight: bold;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
@@ -113,7 +113,7 @@ class PDFGenerator:
         }}
         
         .cover-topic {{
-            font-size: 24pt;
+            font-size: 27pt;
             font-weight: normal;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
@@ -230,26 +230,26 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # TITLE - 24pt Calibri
+        # TITLE - 27pt Calibri
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(24)
+        title_run.font.size = Pt(27)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         title_para.paragraph_format.space_after = Pt(0)
         title_para.paragraph_format.space_before = Pt(0)
         title_para.paragraph_format.line_spacing = 1.0
         
-        # TOPIC - 24pt Calibri (immediately after title, no gap)
+        # TOPIC - 27pt Calibri (immediately after title, no gap)
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(24)
+        topic_run.font.size = Pt(27)
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         topic_para.paragraph_format.space_after = Pt(0)
