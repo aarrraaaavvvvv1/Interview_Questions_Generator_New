@@ -1,4 +1,4 @@
-"""Document generators - Reduced spacing, answer inline with text"""
+"""Document generators - 24pt title/topic, tight spacing, no blank lines"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -100,23 +100,26 @@ class PDFGenerator:
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            gap: 0;
         }}
         .cover-title {{
-            font-size: 48pt;
+            font-size: 24pt;
             font-weight: bold;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
-            margin-bottom: 5px;
-            margin-top: 0;
+            margin: 0;
+            padding: 0;
+            line-height: 1.2;
         }}
         
         .cover-topic {{
-            font-size: 28pt;
+            font-size: 24pt;
             font-weight: normal;
             color: #FFFFFF;
             font-family: Calibri, sans-serif;
-            margin-top: 5px;
-            margin-bottom: 0;
+            margin: 0;
+            padding: 0;
+            line-height: 1.2;
         }}
         .cover-footer {{
             height: 13%;
@@ -227,30 +230,33 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # TITLE - Centered
+        # TITLE - 24pt Calibri
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(48)
+        title_run.font.size = Pt(24)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         title_para.paragraph_format.space_after = Pt(0)
         title_para.paragraph_format.space_before = Pt(0)
+        title_para.paragraph_format.line_spacing = 1.0
         
-        # TOPIC - Centered (NO SPACING)
+        # TOPIC - 24pt Calibri (immediately after title, no gap)
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(28)
+        topic_run.font.size = Pt(24)
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         topic_para.paragraph_format.space_after = Pt(0)
         topic_para.paragraph_format.space_before = Pt(0)
+        topic_para.paragraph_format.line_spacing = 1.0
         
+        # BLUE BACKGROUND - rest of page
         for _ in range(12):
             para = doc.add_paragraph()
             self._add_blue_background(para)
