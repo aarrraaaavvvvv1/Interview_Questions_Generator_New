@@ -64,7 +64,7 @@ class PDFGenerator:
         body {{
             margin: 0;
             padding: 0;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             font-size: 14pt;
             line-height: 1.5;
             color: #000000;
@@ -106,7 +106,7 @@ class PDFGenerator:
             font-size: 27pt;
             font-weight: bold;
             color: #FFFFFF;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             margin: 0;
             padding: 0;
             line-height: 1.2;
@@ -116,7 +116,7 @@ class PDFGenerator:
             font-size: 27pt;
             font-weight: normal;
             color: #FFFFFF;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             margin: 0;
             padding: 0;
             line-height: 1.2;
@@ -164,7 +164,7 @@ class PDFGenerator:
             font-weight: bold;
             margin-bottom: 5px;
             color: #000000;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             text-align: justify;
         }}
 
@@ -172,7 +172,7 @@ class PDFGenerator:
             font-size: 14pt;
             font-weight: bold;
             color: #000000;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             display: inline;
             text-align: justify;
         }}
@@ -183,7 +183,7 @@ class PDFGenerator:
             line-height: 1.5;
             margin-bottom: 10px;
             color: #000000;
-            font-family: Calibri, sans-serif;
+            font-family: Calibri;
             display: inline;
         }}
     </style>
