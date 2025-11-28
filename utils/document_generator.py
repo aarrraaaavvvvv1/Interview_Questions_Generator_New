@@ -1,4 +1,4 @@
-"""Document generators - Fixed PDF separators and Word cover page margins"""
+"""Document generators - Fixed PDF spacing and Word cover page full-bleed layout"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -112,20 +112,20 @@ class PDFGenerator:
 
         .cover-footer {{
             height: auto;
-            min-height: 100px;
             background-color: #FFFFFF;
             width: 100%;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-end; /* Align image to bottom */
             padding: 0;
+            margin: 0;
         }}
 
         .partner-banner {{
-            max-width: 100%;
-            width: auto;
+            width: 100%;
             height: auto;
             display: block;
+            margin: 0;
         }}
 
         /* CONTENT PAGES */
@@ -134,7 +134,7 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 10px;
+            margin-bottom: 40px; /* Increased empty space after answer */
             page-break-inside: avoid;
         }}
 
@@ -158,13 +158,6 @@ class PDFGenerator:
             line-height: 1.5;
             color: #000000;
         }}
-        
-        .separator {{
-            border: 0;
-            border-bottom: 1px solid #CCCCCC;
-            margin-top: 15px;
-            margin-bottom: 15px;
-        }}
     </style>
 </head>
 <body>
@@ -179,7 +172,6 @@ class PDFGenerator:
     <div class="question-header">Question {i}: {question}</div>
     <span class="answer-header">Answer: </span><span class="answer-text">{answer}</span>
 </div>
-<hr class="separator">
 """
         html_content += """
 </div>
@@ -203,7 +195,7 @@ class WordDocumentGenerator:
         
         # === COVER PAGE ===
         section = doc.sections[0]
-        # Zero out ALL margins to prevent white borders
+        # STRICT ZERO MARGINS to prevent "Box" effect
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
@@ -211,57 +203,61 @@ class WordDocumentGenerator:
         section.header_distance = Inches(0)
         section.footer_distance = Inches(0)
         
-        # 1. Spacer Top (Blue)
-        # Using fewer lines with larger spacing to fill vertical space more predictably
-        for _ in range(7):
-            para = doc.add_paragraph()
-            self._add_blue_background(para)
-            para.paragraph_format.space_after = Pt(24)
-        
-        # 2. TITLE (Blue)
-        title_para = doc.add_paragraph()
-        self._add_blue_background(title_para)
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title_para.add_run(title)
-        title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(32)
-        title_run.font.bold = True
-        title_run.font.color.rgb = RGBColor(255, 255, 255)
-        title_para.paragraph_format.space_after = Pt(24)
-        
-        # 3. TOPIC (Blue)
-        topic_para = doc.add_paragraph()
-        self._add_blue_background(topic_para)
-        topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        topic_run = topic_para.add_run(topic)
-        topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(24)
-        topic_run.font.bold = False
-        topic_run.font.color.rgb = RGBColor(255, 255, 255)
-        topic_para.paragraph_format.space_after = Pt(0)
-        
-        # 4. Spacer Bottom (Blue)
-        # Push the footer down.
-        for _ in range(6):
-            para = doc.add_paragraph()
-            self._add_blue_background(para)
-            para.paragraph_format.space_after = Pt(24)
+        # Helper to create blue filler paragraphs without white gaps
+        def add_blue_para(text="", font_size=11, bold=False, line_height_pt=None):
+            p = doc.add_paragraph()
+            self._add_blue_background(p)
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-        # 5. WHITE FOOTER - Logo
+            # Critical: remove spacing to ensure solid color block
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+            
+            if line_height_pt:
+                p.paragraph_format.line_spacing = Pt(line_height_pt)
+                
+            if text:
+                run = p.add_run(text)
+                run.font.name = 'Calibri'
+                run.font.size = Pt(font_size)
+                run.font.bold = bold
+                run.font.color.rgb = RGBColor(255, 255, 255)
+            return p
+
+        # 1. Spacer Top (Solid Blue)
+        # Add ~15 empty blue lines to push content down
+        for _ in range(12): 
+            add_blue_para(line_height_pt=24) # Taller lines fill space faster
+        
+        # 2. TITLE (Solid Blue)
+        add_blue_para(title, font_size=32, bold=True)
+        # Small spacer between Title and Topic
+        add_blue_para(line_height_pt=12) 
+        
+        # 3. TOPIC (Solid Blue)
+        add_blue_para(topic, font_size=24, bold=False)
+        
+        # 4. Spacer Bottom (Solid Blue)
+        # Push footer to bottom. Adjust range to fill page length.
+        for _ in range(10): 
+            add_blue_para(line_height_pt=24)
+            
+        # 5. WHITE FOOTER - Logo Only
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
+        # Remove all spacing so it fits perfectly
+        logo_para.paragraph_format.space_before = Pt(0)
+        logo_para.paragraph_format.space_after = Pt(0)
+        logo_para.paragraph_format.line_spacing = WD_LINE_SPACING.SINGLE
         
+        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(6.5)) # Wider to fit perfectly
+                # Maximize width to fit page (A4 width is approx 8.27in)
+                run.add_picture(logo_path, width=Inches(7.5)) 
             except:
                 pass
-        
-        # No extra spacing around logo to ensure it sits at the very bottom if needed
-        logo_para.paragraph_format.space_before = Pt(0)
-        logo_para.paragraph_format.space_after = Pt(0)
 
         # === PAGE BREAK ===
         doc.add_page_break()
@@ -280,7 +276,7 @@ class WordDocumentGenerator:
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question - 14pt (Reverted)
+            # Question - 14pt (Requested)
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -292,7 +288,7 @@ class WordDocumentGenerator:
             q_para.paragraph_format.space_after = Pt(6)
             q_para.paragraph_format.keep_with_next = True
             
-            # Answer - 14pt (Reverted)
+            # Answer - 14pt (Requested)
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
@@ -307,7 +303,7 @@ class WordDocumentGenerator:
             ans_run.font.bold = False
             
             ans_para.paragraph_format.line_spacing = 1.15
-            ans_para.paragraph_format.space_after = Pt(18)
+            ans_para.paragraph_format.space_after = Pt(24) # Space between pairs
         
         buffer = BytesIO()
         doc.save(buffer)
