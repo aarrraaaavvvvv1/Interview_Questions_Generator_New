@@ -1,4 +1,4 @@
-"""Document generators - Fixed formatting and standardized font sizes"""
+"""Document generators - Fixed cover page layout, logo sizing, and margins"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -29,9 +29,7 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             </div>
         </div>
         <div class="cover-footer">
-            <div class="footer-logo-wrapper">
-                <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
-            </div>
+            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
         </div>
     </div>
     """
@@ -58,14 +56,14 @@ class PDFGenerator:
         
         @page content {{
             size: A4;
-            margin: 25.4mm 25.4mm 25.4mm 25.4mm; /* Standard 1 inch margins */
+            margin: 25.4mm;
         }}
 
         body {{
             margin: 0;
             padding: 0;
             font-family: Calibri, sans-serif;
-            font-size: 11pt; /* Reduced from 14pt */
+            font-size: 11pt;
             line-height: 1.5;
             color: #000000;
         }}
@@ -77,53 +75,59 @@ class PDFGenerator:
             width: 210mm;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end;
-            page-break-after: always;
+            margin: 0;
+            padding: 0;
         }}
         
         .cover-main {{
             background-color: #3030ff;
-            flex: 1;
+            flex-grow: 1; /* Fills all available space */
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            min-height: 85%;
-            padding: 0;
+            width: 100%;
         }}
+
         .cover-content {{
             width: 80%;
             text-align: center;
         }}
+
         .cover-title {{
-            font-size: 24pt; /* Reduced from 27pt */
+            font-size: 32pt;
             font-weight: bold;
             color: #FFFFFF;
-            margin: 0 0 20px 0;
+            margin: 0 0 30px 0;
             line-height: 1.2;
         }}
         
         .cover-topic {{
-            font-size: 18pt; /* Reduced from 27pt for hierarchy */
+            font-size: 24pt;
             font-weight: normal;
             color: #FFFFFF;
             margin: 0;
             line-height: 1.2;
         }}
+
         .cover-footer {{
-            height: 15%;
-            background: #FFF;
+            height: 150px; /* Fixed height for footer area */
+            background-color: #FFFFFF;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 10px 0;
+            padding: 10px;
+            box-sizing: border-box;
         }}
+
         .partner-banner {{
-            max-width: 80%;
-            max-height: 80px;
-            height: auto;
+            max-height: 90%; /* Fill the footer height */
+            max-width: 90%;
             width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
         }}
 
         /* CONTENT PAGES */
@@ -133,7 +137,7 @@ class PDFGenerator:
 
         .question-block {{
             margin-bottom: 20px;
-            page-break-inside: avoid; /* Prevents splitting Q and A across pages */
+            page-break-inside: avoid;
         }}
 
         .question-header {{
@@ -151,11 +155,10 @@ class PDFGenerator:
         }}
 
         .answer-text {{
-            font-size: 11pt; /* Reduced from 14pt */
+            font-size: 11pt;
             text-align: justify;
             line-height: 1.5;
             color: #000000;
-            display: inline;
         }}
     </style>
 </head>
@@ -199,53 +202,60 @@ class WordDocumentGenerator:
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # Spacing adjustment for cover page
-        # Using fewer, specifically sized paragraphs to be more robust
-        for _ in range(10):
+        # 1. Spacer Top
+        for _ in range(8):
             para = doc.add_paragraph()
             self._add_blue_background(para)
+            para.paragraph_format.line_spacing = 1.0
         
-        # TITLE
+        # 2. TITLE
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(24) # Reduced
+        title_run.font.size = Pt(32)
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
-        title_para.paragraph_format.space_after = Pt(12)
+        title_para.paragraph_format.space_after = Pt(24)
         
-        # TOPIC
+        # 3. TOPIC
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(18) # Reduced for hierarchy
+        topic_run.font.size = Pt(24)
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         topic_para.paragraph_format.space_after = Pt(0)
         
-        # Fill rest with blue
-        for _ in range(10):
+        # 4. Fill rest with blue
+        # Adjusted range to push footer to bottom without spilling over
+        for _ in range(8):
             para = doc.add_paragraph()
             self._add_blue_background(para)
+            para.paragraph_format.line_spacing = 1.0
+            para.paragraph_format.space_after = Pt(12)
         
-        # WHITE FOOTER - Logo
+        # 5. WHITE FOOTER - Logo
+        # IMPORTANT: Do NOT add blue background here
         logo_para = doc.add_paragraph()
-        self._add_blue_background(logo_para) 
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(2.5))
+                # Increased width to 4.5 inches for better visibility
+                run.add_picture(logo_path, width=Inches(4.5))
             except:
                 pass
-        logo_para.paragraph_format.space_before = Pt(20)
         
+        # Add some space after logo
+        logo_para.paragraph_format.space_before = Pt(20)
+        logo_para.paragraph_format.space_after = Pt(20)
+
         # === PAGE BREAK ===
         doc.add_page_break()
         
@@ -260,38 +270,34 @@ class WordDocumentGenerator:
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question - 11pt bold, justified
+            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(11) # Reduced from 14
+            q_run.font.size = Pt(11)
             q_run.font.bold = True
             
-            # Formatting
             q_para.paragraph_format.line_spacing = 1.15
             q_para.paragraph_format.space_after = Pt(3)
-            q_para.paragraph_format.keep_with_next = True # Keep question with answer
+            q_para.paragraph_format.keep_with_next = True
             
-            # Answer Paragraph
+            # Answer
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
-            # "Answer:" Label
             ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(11) # Reduced from 14
+            ans_header_run.font.size = Pt(11)
             ans_header_run.font.bold = True
             
-            # Answer Text
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(11) # Reduced from 14
+            ans_run.font.size = Pt(11)
             ans_run.font.bold = False
             
-            # Spacing
             ans_para.paragraph_format.line_spacing = 1.15
-            ans_para.paragraph_format.space_after = Pt(18) # Space between Q&A pairs
+            ans_para.paragraph_format.space_after = Pt(18)
         
         buffer = BytesIO()
         doc.save(buffer)
