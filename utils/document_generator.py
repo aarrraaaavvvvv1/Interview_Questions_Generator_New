@@ -1,4 +1,4 @@
-"""Document generators - Fixed Word margins using Section Breaks"""
+"""Document generators - Fixed Word vertical filling and logo sizing"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -135,7 +135,7 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 40px; /* Empty space between answers */
+            margin-bottom: 40px;
             page-break-inside: avoid;
         }}
 
@@ -195,7 +195,6 @@ class WordDocumentGenerator:
         doc = Document()
         
         # === SECTION 1: COVER PAGE ===
-        # Use existing section for cover page and set 0 margins
         section_cover = doc.sections[0]
         section_cover.top_margin = Inches(0)
         section_cover.bottom_margin = Inches(0)
@@ -221,9 +220,13 @@ class WordDocumentGenerator:
                 run.font.color.rgb = RGBColor(255, 255, 255)
             return p
 
-        # 1. Spacer Top
-        for _ in range(12): 
-            add_blue_para(line_height_pt=24)
+        # CALCULATION: A4 height ~11.7 inches.
+        # We need to fill ~10 inches of blue content to push logo to bottom.
+        # Using 36pt (0.5 inch) lines for spacers.
+        
+        # 1. Spacer Top (~4 inches)
+        for _ in range(8): 
+            add_blue_para(line_height_pt=36)
         
         # 2. TITLE
         add_blue_para(title, font_size=32, bold=True)
@@ -232,9 +235,11 @@ class WordDocumentGenerator:
         # 3. TOPIC
         add_blue_para(topic, font_size=24, bold=False)
         
-        # 4. Spacer Bottom
-        for _ in range(10): 
-            add_blue_para(line_height_pt=24)
+        # 4. Spacer Bottom (~4.5 inches)
+        # Increased to ensure it pushes logo down. 
+        # Note: If it spills to next page, reduce range slightly.
+        for _ in range(9): 
+            add_blue_para(line_height_pt=36)
             
         # 5. WHITE FOOTER - Logo Only
         logo_para = doc.add_paragraph()
@@ -247,15 +252,14 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(7.5)) 
+                # Full A4 width (8.27in) minus tiny safety margin
+                run.add_picture(logo_path, width=Inches(8.25)) 
             except:
                 pass
 
         # === SECTION 2: CONTENT ===
-        # CRITICAL: Create a NEW section for content to allow different margins
         section_content = doc.add_section(WD_SECTION.NEW_PAGE)
         
-        # Set standard margins for the new section
         section_content.top_margin = Inches(1)
         section_content.bottom_margin = Inches(1)
         section_content.left_margin = Inches(1)
@@ -294,7 +298,7 @@ class WordDocumentGenerator:
             ans_run.font.bold = False
             
             ans_para.paragraph_format.line_spacing = 1.15
-            ans_para.paragraph_format.space_after = Pt(24) # Space between pairs
+            ans_para.paragraph_format.space_after = Pt(24)
         
         buffer = BytesIO()
         doc.save(buffer)
