@@ -1,4 +1,4 @@
-"""Document generators - 27pt title/topic on front page"""
+"""Document generators - Matching sizes, logo on front page, content starts immediately"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -165,6 +165,7 @@ class PDFGenerator:
             margin-bottom: 5px;
             color: #000000;
             font-family: Calibri, sans-serif;
+            text-align: justify;
         }}
 
         .answer-header {{
@@ -173,6 +174,7 @@ class PDFGenerator:
             color: #000000;
             font-family: Calibri, sans-serif;
             display: inline;
+            text-align: justify;
         }}
 
         .answer-text {{
@@ -218,7 +220,8 @@ class WordDocumentGenerator:
     
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
-        # Cover page section (no margins)
+        
+        # === COVER PAGE ===
         section = doc.sections[0]
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
@@ -230,7 +233,7 @@ class WordDocumentGenerator:
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # TITLE - 27pt Calibri
+        # TITLE
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -243,7 +246,7 @@ class WordDocumentGenerator:
         title_para.paragraph_format.space_before = Pt(0)
         title_para.paragraph_format.line_spacing = 1.0
         
-        # TOPIC - 27pt Calibri (immediately after title, no gap)
+        # TOPIC
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -256,13 +259,14 @@ class WordDocumentGenerator:
         topic_para.paragraph_format.space_before = Pt(0)
         topic_para.paragraph_format.line_spacing = 1.0
         
-        # BLUE BACKGROUND - rest of page
-        for _ in range(12):
+        # Fill rest with blue
+        for _ in range(11):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo at original size
+        # WHITE FOOTER - Logo (MUST BE ON SAME PAGE)
         logo_para = doc.add_paragraph()
+        self._add_blue_background(logo_para)  # Keep blue background for logo area
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
         if os.path.exists(logo_path):
@@ -271,21 +275,25 @@ class WordDocumentGenerator:
                 run.add_picture(logo_path)
             except:
                 pass
+        logo_para.paragraph_format.space_after = Pt(0)
         
-        # Content section
+        # === PAGE BREAK - Force to next page ===
         doc.add_page_break()
-        new_section = doc.add_section()
-        new_section.top_margin = Inches(0.72)
-        new_section.bottom_margin = Inches(0.72)
-        new_section.left_margin = Inches(0.72)
-        new_section.right_margin = Inches(0.72)
         
-        # CONTENT PAGES - Answer inline with text
+        # === CONTENT PAGES ===
+        # Update section for content pages
+        section = doc.sections[-1]
+        section.top_margin = Inches(0.72)
+        section.bottom_margin = Inches(0.72)
+        section.left_margin = Inches(0.72)
+        section.right_margin = Inches(0.72)
+        
+        # CONTENT - Justified, 1.5 spacing, 14pt
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question header
+            # Question - 14pt bold, justified
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -295,17 +303,17 @@ class WordDocumentGenerator:
             q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             q_para.paragraph_format.space_after = Pt(6)
             
-            # Answer - inline: "Answer:" + answer text on same line
+            # Answer - 14pt, inline, justified
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
-            # Add "Answer:" in bold
+            # "Answer:" - 14pt bold
             ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
             ans_header_run.font.size = Pt(14)
             ans_header_run.font.bold = True
             
-            # Add answer text immediately after
+            # Answer text - 14pt normal
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
             ans_run.font.size = Pt(14)
