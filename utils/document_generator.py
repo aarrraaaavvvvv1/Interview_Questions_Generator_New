@@ -1,4 +1,4 @@
-"""Document generators - Fixed cover page layout, logo sizing, and margins"""
+"""Document generators - Fixed PDF separators and Word cover page margins"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -81,7 +81,7 @@ class PDFGenerator:
         
         .cover-main {{
             background-color: #3030ff;
-            flex-grow: 1; /* Fills all available space */
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -111,22 +111,20 @@ class PDFGenerator:
         }}
 
         .cover-footer {{
-            height: 150px; /* Fixed height for footer area */
+            height: auto;
+            min-height: 100px;
             background-color: #FFFFFF;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 10px;
-            box-sizing: border-box;
+            padding: 0;
         }}
 
         .partner-banner {{
-            max-height: 90%; /* Fill the footer height */
-            max-width: 90%;
+            max-width: 100%;
             width: auto;
             height: auto;
-            object-fit: contain;
             display: block;
         }}
 
@@ -136,7 +134,7 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             page-break-inside: avoid;
         }}
 
@@ -160,6 +158,13 @@ class PDFGenerator:
             line-height: 1.5;
             color: #000000;
         }}
+        
+        .separator {{
+            border: 0;
+            border-bottom: 1px solid #CCCCCC;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }}
     </style>
 </head>
 <body>
@@ -174,6 +179,7 @@ class PDFGenerator:
     <div class="question-header">Question {i}: {question}</div>
     <span class="answer-header">Answer: </span><span class="answer-text">{answer}</span>
 </div>
+<hr class="separator">
 """
         html_content += """
 </div>
@@ -197,18 +203,22 @@ class WordDocumentGenerator:
         
         # === COVER PAGE ===
         section = doc.sections[0]
+        # Zero out ALL margins to prevent white borders
         section.top_margin = Inches(0)
         section.bottom_margin = Inches(0)
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
+        section.header_distance = Inches(0)
+        section.footer_distance = Inches(0)
         
-        # 1. Spacer Top
-        for _ in range(8):
+        # 1. Spacer Top (Blue)
+        # Using fewer lines with larger spacing to fill vertical space more predictably
+        for _ in range(7):
             para = doc.add_paragraph()
             self._add_blue_background(para)
-            para.paragraph_format.line_spacing = 1.0
+            para.paragraph_format.space_after = Pt(24)
         
-        # 2. TITLE
+        # 2. TITLE (Blue)
         title_para = doc.add_paragraph()
         self._add_blue_background(title_para)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -219,7 +229,7 @@ class WordDocumentGenerator:
         title_run.font.color.rgb = RGBColor(255, 255, 255)
         title_para.paragraph_format.space_after = Pt(24)
         
-        # 3. TOPIC
+        # 3. TOPIC (Blue)
         topic_para = doc.add_paragraph()
         self._add_blue_background(topic_para)
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -230,16 +240,14 @@ class WordDocumentGenerator:
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         topic_para.paragraph_format.space_after = Pt(0)
         
-        # 4. Fill rest with blue
-        # Adjusted range to push footer to bottom without spilling over
-        for _ in range(8):
+        # 4. Spacer Bottom (Blue)
+        # Push the footer down.
+        for _ in range(6):
             para = doc.add_paragraph()
             self._add_blue_background(para)
-            para.paragraph_format.line_spacing = 1.0
-            para.paragraph_format.space_after = Pt(12)
-        
+            para.paragraph_format.space_after = Pt(24)
+            
         # 5. WHITE FOOTER - Logo
-        # IMPORTANT: Do NOT add blue background here
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
@@ -247,53 +255,55 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                # Increased width to 4.5 inches for better visibility
-                run.add_picture(logo_path, width=Inches(4.5))
+                run.add_picture(logo_path, width=Inches(6.5)) # Wider to fit perfectly
             except:
                 pass
         
-        # Add some space after logo
-        logo_para.paragraph_format.space_before = Pt(20)
-        logo_para.paragraph_format.space_after = Pt(20)
+        # No extra spacing around logo to ensure it sits at the very bottom if needed
+        logo_para.paragraph_format.space_before = Pt(0)
+        logo_para.paragraph_format.space_after = Pt(0)
 
         # === PAGE BREAK ===
         doc.add_page_break()
         
         # === CONTENT PAGES ===
         section = doc.sections[-1]
+        # Restore standard margins for content
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
+        section.header_distance = Inches(0.5)
+        section.footer_distance = Inches(0.5)
         
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question
+            # Question - 14pt (Reverted)
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(11)
+            q_run.font.size = Pt(14) 
             q_run.font.bold = True
             
             q_para.paragraph_format.line_spacing = 1.15
-            q_para.paragraph_format.space_after = Pt(3)
+            q_para.paragraph_format.space_after = Pt(6)
             q_para.paragraph_format.keep_with_next = True
             
-            # Answer
+            # Answer - 14pt (Reverted)
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
             ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(11)
+            ans_header_run.font.size = Pt(14)
             ans_header_run.font.bold = True
             
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(11)
+            ans_run.font.size = Pt(14)
             ans_run.font.bold = False
             
             ans_para.paragraph_format.line_spacing = 1.15
