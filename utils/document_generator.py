@@ -1,4 +1,4 @@
-"""Document generators - Matching sizes, logo on front page, content starts immediately"""
+"""Document generators - Fixed formatting and standardized font sizes"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -7,7 +7,7 @@ import os
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-except:
+except ImportError:
     WEASYPRINT_AVAILABLE = False
 
 from docx import Document
@@ -58,14 +58,14 @@ class PDFGenerator:
         
         @page content {{
             size: A4;
-            margin: 18.3mm 18.3mm 18.3mm 18.3mm;
+            margin: 25.4mm 25.4mm 25.4mm 25.4mm; /* Standard 1 inch margins */
         }}
 
         body {{
             margin: 0;
             padding: 0;
-            font-family: Calibri;
-            font-size: 14pt;
+            font-family: Calibri, sans-serif;
+            font-size: 11pt; /* Reduced from 14pt */
             line-height: 1.5;
             color: #000000;
         }}
@@ -88,66 +88,42 @@ class PDFGenerator:
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            min-height: 87%;
-            height: 87%;
+            min-height: 85%;
             padding: 0;
         }}
         .cover-content {{
-            width: 100%;
-            height: 100%;
+            width: 80%;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 0;
         }}
         .cover-title {{
-            font-size: 27pt;
+            font-size: 24pt; /* Reduced from 27pt */
             font-weight: bold;
             color: #FFFFFF;
-            font-family: Calibri;
-            margin: 0;
-            padding: 0;
+            margin: 0 0 20px 0;
             line-height: 1.2;
         }}
         
         .cover-topic {{
-            font-size: 27pt;
+            font-size: 18pt; /* Reduced from 27pt for hierarchy */
             font-weight: normal;
             color: #FFFFFF;
-            font-family: Calibri;
             margin: 0;
-            padding: 0;
             line-height: 1.2;
         }}
         .cover-footer {{
-            height: 13%;
+            height: 15%;
             background: #FFF;
             width: 100%;
-            min-height: 100px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-end;
-            position: relative;
-            text-align: center;
-            padding: 10px 0;
-            margin: 0;
-        }}
-        .footer-logo-wrapper {{
-            width: 100%;
-            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 10px 0;
         }}
         .partner-banner {{
-            max-width: 100%;
+            max-width: 80%;
+            max-height: 80px;
             height: auto;
             width: auto;
-            display: block;
-            margin: 0 auto;
-            padding: 0;
         }}
 
         /* CONTENT PAGES */
@@ -156,34 +132,29 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            page-break-inside: avoid; /* Prevents splitting Q and A across pages */
         }}
 
         .question-header {{
-            font-size: 14pt;
+            font-size: 11pt;
             font-weight: bold;
             margin-bottom: 5px;
             color: #000000;
-            font-family: Calibri;
             text-align: justify;
         }}
 
         .answer-header {{
-            font-size: 14pt;
+            font-size: 11pt;
             font-weight: bold;
             color: #000000;
-            font-family: Calibri;
-            display: inline;
-            text-align: justify;
         }}
 
         .answer-text {{
-            font-size: 14pt;
+            font-size: 11pt; /* Reduced from 14pt */
             text-align: justify;
             line-height: 1.5;
-            margin-bottom: 10px;
             color: #000000;
-            font-family: Calibri;
             display: inline;
         }}
     </style>
@@ -198,7 +169,7 @@ class PDFGenerator:
             html_content += f"""
 <div class="question-block">
     <div class="question-header">Question {i}: {question}</div>
-    <div class="answer-header">Answer: </div><div class="answer-text">{answer}</div>
+    <span class="answer-header">Answer: </span><span class="answer-text">{answer}</span>
 </div>
 """
         html_content += """
@@ -228,8 +199,9 @@ class WordDocumentGenerator:
         section.left_margin = Inches(0)
         section.right_margin = Inches(0)
         
-        # BLUE BACKGROUND
-        for _ in range(12):
+        # Spacing adjustment for cover page
+        # Using fewer, specifically sized paragraphs to be more robust
+        for _ in range(10):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
@@ -239,12 +211,10 @@ class WordDocumentGenerator:
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         title_run = title_para.add_run(title)
         title_run.font.name = 'Calibri'
-        title_run.font.size = Pt(27)
+        title_run.font.size = Pt(24) # Reduced
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(255, 255, 255)
-        title_para.paragraph_format.space_after = Pt(0)
-        title_para.paragraph_format.space_before = Pt(0)
-        title_para.paragraph_format.line_spacing = 1.0
+        title_para.paragraph_format.space_after = Pt(12)
         
         # TOPIC
         topic_para = doc.add_paragraph()
@@ -252,75 +222,76 @@ class WordDocumentGenerator:
         topic_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         topic_run = topic_para.add_run(topic)
         topic_run.font.name = 'Calibri'
-        topic_run.font.size = Pt(27)
+        topic_run.font.size = Pt(18) # Reduced for hierarchy
         topic_run.font.bold = False
         topic_run.font.color.rgb = RGBColor(255, 255, 255)
         topic_para.paragraph_format.space_after = Pt(0)
-        topic_para.paragraph_format.space_before = Pt(0)
-        topic_para.paragraph_format.line_spacing = 1.0
         
         # Fill rest with blue
-        for _ in range(11):
+        for _ in range(10):
             para = doc.add_paragraph()
             self._add_blue_background(para)
         
-        # WHITE FOOTER - Logo (MUST BE ON SAME PAGE)
+        # WHITE FOOTER - Logo
         logo_para = doc.add_paragraph()
-        self._add_blue_background(logo_para)  # Keep blue background for logo area
+        self._add_blue_background(logo_para) 
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
+        
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                run.add_picture(logo_path)
+                run.add_picture(logo_path, width=Inches(2.5))
             except:
                 pass
-        logo_para.paragraph_format.space_after = Pt(0)
+        logo_para.paragraph_format.space_before = Pt(20)
         
-        # === PAGE BREAK - Force to next page ===
+        # === PAGE BREAK ===
         doc.add_page_break()
         
         # === CONTENT PAGES ===
-        # Update section for content pages
         section = doc.sections[-1]
-        section.top_margin = Inches(0.72)
-        section.bottom_margin = Inches(0.72)
-        section.left_margin = Inches(0.72)
-        section.right_margin = Inches(0.72)
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
         
-        # CONTENT - Justified, 1.5 spacing, 14pt
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question - 14pt bold, justified
+            # Question - 11pt bold, justified
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
             q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(14)
+            q_run.font.size = Pt(11) # Reduced from 14
             q_run.font.bold = True
-            q_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            q_para.paragraph_format.space_after = Pt(6)
             
-            # Answer - 14pt, inline, justified
+            # Formatting
+            q_para.paragraph_format.line_spacing = 1.15
+            q_para.paragraph_format.space_after = Pt(3)
+            q_para.paragraph_format.keep_with_next = True # Keep question with answer
+            
+            # Answer Paragraph
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
-            # "Answer:" - 14pt bold
+            # "Answer:" Label
             ans_header_run = ans_para.add_run("Answer: ")
             ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(14)
+            ans_header_run.font.size = Pt(11) # Reduced from 14
             ans_header_run.font.bold = True
             
-            # Answer text - 14pt normal
+            # Answer Text
             ans_run = ans_para.add_run(answer)
             ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(14)
+            ans_run.font.size = Pt(11) # Reduced from 14
             ans_run.font.bold = False
             
-            ans_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
-            ans_para.paragraph_format.space_after = Pt(10)
+            # Spacing
+            ans_para.paragraph_format.line_spacing = 1.15
+            ans_para.paragraph_format.space_after = Pt(18) # Space between Q&A pairs
         
         buffer = BytesIO()
         doc.save(buffer)
