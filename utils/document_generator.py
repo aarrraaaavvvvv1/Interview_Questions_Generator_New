@@ -1,4 +1,4 @@
-"""Document generators - Fixed PDF spacing and Word cover page full-bleed layout"""
+"""Document generators - Fixed Word margins using Section Breaks"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -13,6 +13,7 @@ except ImportError:
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.section import WD_SECTION
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -116,7 +117,7 @@ class PDFGenerator:
             width: 100%;
             display: flex;
             justify-content: center;
-            align-items: flex-end; /* Align image to bottom */
+            align-items: flex-end;
             padding: 0;
             margin: 0;
         }}
@@ -134,7 +135,7 @@ class PDFGenerator:
         }}
 
         .question-block {{
-            margin-bottom: 40px; /* Increased empty space after answer */
+            margin-bottom: 40px; /* Empty space between answers */
             page-break-inside: avoid;
         }}
 
@@ -193,29 +194,25 @@ class WordDocumentGenerator:
     def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
         doc = Document()
         
-        # === COVER PAGE ===
-        section = doc.sections[0]
-        # STRICT ZERO MARGINS to prevent "Box" effect
-        section.top_margin = Inches(0)
-        section.bottom_margin = Inches(0)
-        section.left_margin = Inches(0)
-        section.right_margin = Inches(0)
-        section.header_distance = Inches(0)
-        section.footer_distance = Inches(0)
+        # === SECTION 1: COVER PAGE ===
+        # Use existing section for cover page and set 0 margins
+        section_cover = doc.sections[0]
+        section_cover.top_margin = Inches(0)
+        section_cover.bottom_margin = Inches(0)
+        section_cover.left_margin = Inches(0)
+        section_cover.right_margin = Inches(0)
+        section_cover.header_distance = Inches(0)
+        section_cover.footer_distance = Inches(0)
         
-        # Helper to create blue filler paragraphs without white gaps
+        # Helper to create blue filler paragraphs
         def add_blue_para(text="", font_size=11, bold=False, line_height_pt=None):
             p = doc.add_paragraph()
             self._add_blue_background(p)
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            # Critical: remove spacing to ensure solid color block
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after = Pt(0)
-            
             if line_height_pt:
                 p.paragraph_format.line_spacing = Pt(line_height_pt)
-                
             if text:
                 run = p.add_run(text)
                 run.font.name = 'Calibri'
@@ -224,28 +221,24 @@ class WordDocumentGenerator:
                 run.font.color.rgb = RGBColor(255, 255, 255)
             return p
 
-        # 1. Spacer Top (Solid Blue)
-        # Add ~15 empty blue lines to push content down
+        # 1. Spacer Top
         for _ in range(12): 
-            add_blue_para(line_height_pt=24) # Taller lines fill space faster
+            add_blue_para(line_height_pt=24)
         
-        # 2. TITLE (Solid Blue)
+        # 2. TITLE
         add_blue_para(title, font_size=32, bold=True)
-        # Small spacer between Title and Topic
         add_blue_para(line_height_pt=12) 
         
-        # 3. TOPIC (Solid Blue)
+        # 3. TOPIC
         add_blue_para(topic, font_size=24, bold=False)
         
-        # 4. Spacer Bottom (Solid Blue)
-        # Push footer to bottom. Adjust range to fill page length.
+        # 4. Spacer Bottom
         for _ in range(10): 
             add_blue_para(line_height_pt=24)
             
         # 5. WHITE FOOTER - Logo Only
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        # Remove all spacing so it fits perfectly
         logo_para.paragraph_format.space_before = Pt(0)
         logo_para.paragraph_format.space_after = Pt(0)
         logo_para.paragraph_format.line_spacing = WD_LINE_SPACING.SINGLE
@@ -254,29 +247,27 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                # Maximize width to fit page (A4 width is approx 8.27in)
                 run.add_picture(logo_path, width=Inches(7.5)) 
             except:
                 pass
 
-        # === PAGE BREAK ===
-        doc.add_page_break()
+        # === SECTION 2: CONTENT ===
+        # CRITICAL: Create a NEW section for content to allow different margins
+        section_content = doc.add_section(WD_SECTION.NEW_PAGE)
         
-        # === CONTENT PAGES ===
-        section = doc.sections[-1]
-        # Restore standard margins for content
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
-        section.header_distance = Inches(0.5)
-        section.footer_distance = Inches(0.5)
+        # Set standard margins for the new section
+        section_content.top_margin = Inches(1)
+        section_content.bottom_margin = Inches(1)
+        section_content.left_margin = Inches(1)
+        section_content.right_margin = Inches(1)
+        section_content.header_distance = Inches(0.5)
+        section_content.footer_distance = Inches(0.5)
         
         for i, qa in enumerate(qa_pairs, 1):
             question = qa.get('question', '')
             answer = qa.get('answer', '')
             
-            # Question - 14pt (Requested)
+            # Question
             q_para = doc.add_paragraph()
             q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             q_run = q_para.add_run(f"Question {i}: {question}")
@@ -288,7 +279,7 @@ class WordDocumentGenerator:
             q_para.paragraph_format.space_after = Pt(6)
             q_para.paragraph_format.keep_with_next = True
             
-            # Answer - 14pt (Requested)
+            # Answer
             ans_para = doc.add_paragraph()
             ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             
