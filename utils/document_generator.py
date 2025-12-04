@@ -225,7 +225,6 @@ class WordDocumentGenerator:
         # Using 36pt (0.5 inch) lines for spacers.
 
         # 1. Spacer Top (~4 inches)
-        for _ in range(8): 
         for _ in range(7): 
             add_blue_para(line_height_pt=36)
 
