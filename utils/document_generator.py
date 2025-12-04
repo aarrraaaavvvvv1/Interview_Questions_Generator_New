@@ -1,4 +1,4 @@
-"""Document generators - Fixed Word vertical filling and logo sizing"""
+"""Document generators - Logos scaled to 50% of original size"""
 
 from io import BytesIO
 from typing import List, Dict
@@ -7,13 +7,12 @@ import os
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except:
     WEASYPRINT_AVAILABLE = False
 
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
-from docx.enum.section import WD_SECTION
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -30,7 +29,9 @@ def get_cover_page_html(title: str, topic: str, partner_institute: str) -> str:
             </div>
         </div>
         <div class="cover-footer">
-            <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            <div class="footer-logo-wrapper">
+                <img src="{logo_url}" class="partner-banner" alt="{partner_institute}">
+            </div>
         </div>
     </div>
     """
@@ -57,14 +58,14 @@ class PDFGenerator:
         
         @page content {{
             size: A4;
-            margin: 25.4mm;
+            margin: 18.3mm 18.3mm 18.3mm 18.3mm;
         }}
 
         body {{
             margin: 0;
             padding: 0;
             font-family: Calibri, sans-serif;
-            font-size: 11pt;
+            font-size: 14pt;
             line-height: 1.5;
             color: #000000;
         }}
@@ -76,231 +77,80 @@ class PDFGenerator:
             width: 210mm;
             display: flex;
             flex-direction: column;
-            margin: 0;
-            padding: 0;
+            justify-content: flex-end;
+            page-break-after: always;
         }}
         
         .cover-main {{
             background-color: #3030ff;
-            flex-grow: 1;
+            flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            width: 100%;
+            min-height: 87%;
+            height: 87%;
+            padding: 0;
         }}
-
         .cover-content {{
-            width: 80%;
+            width: 100%;
+            height: 100%;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 0;
         }}
-
         .cover-title {{
-            font-size: 32pt;
+            font-size: 27pt;
             font-weight: bold;
             color: #FFFFFF;
-            margin: 0 0 30px 0;
+            font-family: Calibri, sans-serif;
+            margin: 0;
+            padding: 0;
             line-height: 1.2;
         }}
         
         .cover-topic {{
-            font-size: 24pt;
+            font-size: 27pt;
             font-weight: normal;
             color: #FFFFFF;
+            font-family: Calibri, sans-serif;
             margin: 0;
+            padding: 0;
             line-height: 1.2;
         }}
-
         .cover-footer {{
-            height: auto;
-            background-color: #FFFFFF;
+            height: 13%;
+            background: #FFF;
             width: 100%;
+            min-height: 100px;
             display: flex;
             justify-content: center;
             align-items: flex-end;
-            padding: 0;
+            position: relative;
+            text-align: center;
+            padding: 10px 0;
             margin: 0;
         }}
-
-        .partner-banner {{
+        .footer-logo-wrapper {{
             width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }}
+        .partner-banner {{
+            /* Scale the logo to 50% of its natural size */
+            zoom: 0.5; 
+            max-width: 100%;
             height: auto;
+            width: auto;
             display: block;
-            margin: 0;
+            margin: 0 auto;
+            padding: 0;
         }}
 
         /* CONTENT PAGES */
-        .content-page {{
-            page: content;
-        }}
-
-        .question-block {{
-            margin-bottom: 40px;
-            page-break-inside: avoid;
-        }}
-
-        .question-header {{
-            font-size: 11pt;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #000000;
-            text-align: justify;
-        }}
-
-        .answer-header {{
-            font-size: 11pt;
-            font-weight: bold;
-            color: #000000;
-        }}
-
-        .answer-text {{
-            font-size: 11pt;
-            text-align: justify;
-            line-height: 1.5;
-            color: #000000;
-        }}
-    </style>
-</head>
-<body>
-{get_cover_page_html(self.title, self.topic, self.partner_institute)}
-<div class="content-page">
-"""
-        for i, qa in enumerate(qa_pairs, 1):
-            question = qa.get('question', '')
-            answer = qa.get('answer', '')
-            html_content += f"""
-<div class="question-block">
-    <div class="question-header">Question {i}: {question}</div>
-    <span class="answer-header">Answer: </span><span class="answer-text">{answer}</span>
-</div>
-"""
-        html_content += """
-</div>
-</body>
-</html>"""
-        pdf_bytes = HTML(string=html_content).write_pdf()
-        return pdf_bytes
-
-class WordDocumentGenerator:
-    def __init__(self):
-        pass
-    
-    def _add_blue_background(self, paragraph):
-        """Add royal blue #3030ff background to paragraph"""
-        shading_elm = OxmlElement('w:shd')
-        shading_elm.set(qn('w:fill'), '3030FF')
-        paragraph._element.get_or_add_pPr().append(shading_elm)
-    
-    def generate(self, qa_pairs: List[Dict], title: str, topic: str, partner_institute: str = "IIT Kanpur") -> bytes:
-        doc = Document()
-        
-        # === SECTION 1: COVER PAGE ===
-        section_cover = doc.sections[0]
-        section_cover.top_margin = Inches(0)
-        section_cover.bottom_margin = Inches(0)
-        section_cover.left_margin = Inches(0)
-        section_cover.right_margin = Inches(0)
-        section_cover.header_distance = Inches(0)
-        section_cover.footer_distance = Inches(0)
-        
-        # Helper to create blue filler paragraphs
-        def add_blue_para(text="", font_size=11, bold=False, line_height_pt=None):
-            p = doc.add_paragraph()
-            self._add_blue_background(p)
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(0)
-            if line_height_pt:
-                p.paragraph_format.line_spacing = Pt(line_height_pt)
-            if text:
-                run = p.add_run(text)
-                run.font.name = 'Calibri'
-                run.font.size = Pt(font_size)
-                run.font.bold = bold
-                run.font.color.rgb = RGBColor(255, 255, 255)
-            return p
-
-        # CALCULATION: A4 height ~11.7 inches.
-        # We need to fill ~10 inches of blue content to push logo to bottom.
-        # Using 36pt (0.5 inch) lines for spacers.
-        
-        # 1. Spacer Top (~4 inches)
-        for _ in range(7): 
-            add_blue_para(line_height_pt=36)
-        
-        # 2. TITLE
-        add_blue_para(title, font_size=32, bold=True)
-        add_blue_para(line_height_pt=12) 
-        
-        # 3. TOPIC
-        add_blue_para(topic, font_size=24, bold=False)
-        
-        # 4. Spacer Bottom (~4.5 inches)
-        # Increased to ensure it pushes logo down. 
-        # Note: If it spills to next page, reduce range slightly.
-        for _ in range(9): 
-            add_blue_para(line_height_pt=36)
-            
-        # 5. WHITE FOOTER - Logo Only
-        logo_para = doc.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        logo_para.paragraph_format.space_before = Pt(0)
-        logo_para.paragraph_format.space_after = Pt(0)
-        logo_para.paragraph_format.line_spacing = WD_LINE_SPACING.SINGLE
-        
-        logo_path = PARTNER_LOGOS.get(partner_institute, PARTNER_LOGOS["Default"])
-        if os.path.exists(logo_path):
-            try:
-                run = logo_para.add_run()
-                # Full A4 width (8.27in) minus tiny safety margin
-                run.add_picture(logo_path, width=Inches(8.25)) 
-            except:
-                pass
-
-        # === SECTION 2: CONTENT ===
-        section_content = doc.add_section(WD_SECTION.NEW_PAGE)
-        
-        section_content.top_margin = Inches(1)
-        section_content.bottom_margin = Inches(1)
-        section_content.left_margin = Inches(1)
-        section_content.right_margin = Inches(1)
-        section_content.header_distance = Inches(0.5)
-        section_content.footer_distance = Inches(0.5)
-        
-        for i, qa in enumerate(qa_pairs, 1):
-            question = qa.get('question', '')
-            answer = qa.get('answer', '')
-            
-            # Question
-            q_para = doc.add_paragraph()
-            q_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            q_run = q_para.add_run(f"Question {i}: {question}")
-            q_run.font.name = 'Calibri'
-            q_run.font.size = Pt(14) 
-            q_run.font.bold = True
-            
-            q_para.paragraph_format.line_spacing = 1.15
-            q_para.paragraph_format.space_after = Pt(6)
-            q_para.paragraph_format.keep_with_next = True
-            
-            # Answer
-            ans_para = doc.add_paragraph()
-            ans_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            
-            ans_header_run = ans_para.add_run("Answer: ")
-            ans_header_run.font.name = 'Calibri'
-            ans_header_run.font.size = Pt(14)
-            ans_header_run.font.bold = True
-            
-            ans_run = ans_para.add_run(answer)
-            ans_run.font.name = 'Calibri'
-            ans_run.font.size = Pt(14)
-            ans_run.font.bold = False
-            
-            ans_para.paragraph_format.line_spacing = 1.15
-            ans_para.paragraph_format.space_after = Pt(24)
-        
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        return buffer.getvalue()
+        .
