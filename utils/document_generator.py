@@ -222,7 +222,7 @@ class WordDocumentGenerator:
             return p
 
         # 1. Spacer Top (~4 inches)
-        for _ in range(7): 
+        for _ in range(9): 
             add_blue_para(line_height_pt=36)
 
         # 2. TITLE
