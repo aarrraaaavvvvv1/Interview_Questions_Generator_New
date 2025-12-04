@@ -122,11 +122,12 @@ class PDFGenerator:
             margin: 0;
         }}
 
+        /* 50% size banner for PDF */
         .partner-banner {{
-            width: 100%;
+            max-width: 50%;
             height: auto;
             display: block;
-            margin: 0;
+            margin: 0 auto;
         }}
 
         /* CONTENT PAGES */
@@ -220,10 +221,6 @@ class WordDocumentGenerator:
                 run.font.color.rgb = RGBColor(255, 255, 255)
             return p
 
-        # CALCULATION: A4 height ~11.7 inches.
-        # We need to fill ~10 inches of blue content to push logo to bottom.
-        # Using 36pt (0.5 inch) lines for spacers.
-
         # 1. Spacer Top (~4 inches)
         for _ in range(7): 
             add_blue_para(line_height_pt=36)
@@ -236,8 +233,6 @@ class WordDocumentGenerator:
         add_blue_para(topic, font_size=24, bold=False)
 
         # 4. Spacer Bottom (~4.5 inches)
-        # Increased to ensure it pushes logo down. 
-        # Note: If it spills to next page, reduce range slightly.
         for _ in range(9): 
             add_blue_para(line_height_pt=36)
 
@@ -252,8 +247,8 @@ class WordDocumentGenerator:
         if os.path.exists(logo_path):
             try:
                 run = logo_para.add_run()
-                # Full A4 width (8.27in) minus tiny safety margin
-                run.add_picture(logo_path, width=Inches(8.25)) 
+                # A4 width is ~8.27in. Previously ~full width; now 50%.
+                run.add_picture(logo_path, width=Inches(4.1))  # ~half page width
             except:
                 pass
 
