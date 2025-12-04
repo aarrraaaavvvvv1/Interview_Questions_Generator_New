@@ -10,8 +10,8 @@ PARTNER_LOGO_URLS = {
 # Map institute names to local file paths (Used for Word/Docx generation)
 # IMPORTANT: These files must exist locally in the 'assets/logos/' directory for Word generation to work.
 PARTNER_LOGOS = {
-    "IIT Kanpur": os.path.join("assets", "logos", "IITK-ACCREDIAN-LOGO-4.jpg"),
-    # The filename matches the one from the URL (decoded %20 becomes a space)
+    # Updated local filename to match the new URL's filename
+    "IIT Kanpur": os.path.join("assets", "logos", "IITK;ACCREDIAN LOGO.png"),
     "IIT Guwahati": os.path.join("assets", "logos", "iitg-accredian-banner.jpg .png"),
     "Default": os.path.join("assets", "logos", "accredian-logo.png")
 }
