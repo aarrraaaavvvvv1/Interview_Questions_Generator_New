@@ -2,7 +2,7 @@ import os
 
 # Map institute names to their logo URLs (Used for PDF generation via WeasyPrint)
 PARTNER_LOGO_URLS = {
-    "IIT Kanpur": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/IITK-ACCREDIAN-LOGO-4.jpg",
+    "IIT Kanpur": "https://raw.githubusercontent.com/aarrraaaavvvvv1/logo/refs/heads/main/IITK%3BACCREDIAN%20LOGO.png",
     "IIT Guwahati": "https://raw.githubusercontent.com/aarrraaaavvvvv1/Interview_Questions_Generator_New/refs/heads/main/assets/logos/iitg-accredian-banner.jpg%20.png",
     "Default": "https://accredian.com/wp-content/uploads/2020/12/Accredian-Logo-1.png"
 }
