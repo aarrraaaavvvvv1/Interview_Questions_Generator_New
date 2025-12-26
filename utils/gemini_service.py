@@ -11,44 +11,16 @@ class GeminiService:
     
     def __init__(self, api_key: str):
         genai.configure(api_key=api_key)
-        self.model = self._get_best_available_model()
+        # OPTIMIZATION: Do NOT call list_models() in init. It wastes an API call.
+        # Directly initialize with the most efficient model (1.5 Flash).
+        self.model_name = "gemini-1.5-flash"
+        self.model = genai.GenerativeModel(self.model_name)
     
-    def _get_best_available_model(self):
-        """Dynamically find the best available model to avoid 404 errors"""
-        try:
-            available_models = list(genai.list_models())
-            
-            # Priority list (Fastest/Best -> Fallback)
-            priority_order = [
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-                "gemini-1.0-pro",
-                "gemini-pro"
-            ]
-            
-            # 1. Try to find a specific match from our priority list
-            for preferred in priority_order:
-                for model in available_models:
-                    if preferred in model.name and 'generateContent' in model.supported_generation_methods:
-                        print(f"Selected model: {model.name}")
-                        return genai.GenerativeModel(model.name)
-
-            # 2. If no exact match, grab the first one that supports content generation
-            for model in available_models:
-                if 'generateContent' in model.supported_generation_methods:
-                    print(f"Fallback model: {model.name}")
-                    return genai.GenerativeModel(model.name)
-            
-            # 3. Absolute fallback (blind guess if list_models fails)
-            return genai.GenerativeModel("gemini-1.5-flash")
-            
-        except Exception as e:
-            print(f"Error listing models: {e}. Defaulting to gemini-1.5-flash")
-            return genai.GenerativeModel("gemini-1.5-flash")
-
     def generate_questions(self, prompt: str) -> str:
-        max_retries = 4 
-        base_delay = 5 
+        # Retry configuration
+        max_retries = 3
+        # Increased base delay to handle strict rate limits
+        base_delay = 10 
         
         for attempt in range(max_retries):
             try:
@@ -63,6 +35,7 @@ class GeminiService:
                 if response and hasattr(response, 'text') and response.text:
                     return response.text
                 
+                # If response is empty but no error, wait briefly and retry
                 if attempt < max_retries - 1:
                     time.sleep(2)
                     continue
@@ -72,15 +45,29 @@ class GeminiService:
             except Exception as e:
                 error_str = str(e)
                 
-                # Handle Rate Limits (429) / Quota
+                # 1. Handle Model Not Found (404)
+                # This happens if the API key doesn't have access to 1.5-flash yet
+                # We catch this specifically and switch to Pro
+                if "404" in error_str or "not found" in error_str.lower():
+                    if self.model_name == "gemini-1.5-flash":
+                        print("Gemini 1.5 Flash not found, falling back to Pro...")
+                        self.model_name = "gemini-pro"
+                        self.model = genai.GenerativeModel("gemini-pro")
+                        # Retry immediately with new model
+                        continue
+                
+                # 2. Handle Rate Limits (429) / Quota
                 if "429" in error_str or "quota" in error_str.lower() or "resource_exhausted" in error_str.lower():
                     if attempt < max_retries - 1:
-                        wait_time = (base_delay * (2 ** attempt)) + random.uniform(1, 3)
+                        # Aggressive backoff: 10s, 20s, 40s
+                        # This gives the API quota time to reset
+                        wait_time = (base_delay * (2 ** attempt)) + random.uniform(1, 5)
                         time.sleep(wait_time)
                         continue
-                    raise Exception("⚠️ API Busy: Rate limit reached. Please wait 30-60 seconds.")
+                    
+                    raise Exception("⚠️ API Busy: Rate limit reached. Please wait 1-2 minutes and try again.")
                 
-                # Handle Overloaded (503)
+                # 3. Handle Overloaded (503)
                 if "503" in error_str or "overloaded" in error_str.lower():
                      if attempt < max_retries - 1:
                         time.sleep(5)
@@ -95,6 +82,7 @@ class GeminiService:
         qa_pairs = []
         response_text = response_text.replace('```', '')
 
+        # Regex to find questions
         question_splits = re.split(
             r'\*{0,2}QUESTION\s+(\d+)\s*:?\*{0,2}',
             response_text,
@@ -105,6 +93,7 @@ class GeminiService:
         while i < len(question_splits) - 1:
             content = question_splits[i + 1]
             
+            # Robust answer finding
             answer_match = re.search(
                 r'\*{0,2}ANSWER\s+\d+\s*:?\*{0,2}\s*(.+?)(?=\*{0,2}QUESTION|\Z)',
                 content,
